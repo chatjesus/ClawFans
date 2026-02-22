@@ -96,6 +96,7 @@ export default function Sidebar() {
         {[
           { href: "/", label: t.sidebar.home, icon: "🏠" },
           { href: "/create", label: t.sidebar.createCharacter, icon: "✨" },
+          { href: "/settings", label: (t.sidebar as Record<string, string>).settings || "Settings", icon: "⚙️" },
         ].map((item) => (
           <Link key={item.href} href={item.href}
             className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all ${isActive(item.href) ? "font-medium nav-active" : "hover:bg-white/5"}`}

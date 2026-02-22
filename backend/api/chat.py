@@ -2,16 +2,23 @@
 Chat API – conversation management and streaming chat with AI characters.
 """
 import json
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
+from typing import Optional
 
-from models.database import get_db, Character, Conversation, Message
+from models.database import get_db, Character, CharacterTranslation, Conversation, Message
 from models.schemas import (
     ConversationCreate, ConversationResponse, ConversationDetail,
     ChatMessageCreate, ChatMessageResponse,
 )
 from services.chat_service import generate_reply_stream
+
+LOCALE_LANGUAGE = {
+    "en": "English", "ja": "Japanese", "ko": "Korean",
+    "es": "Spanish", "fr": "French", "pt": "Portuguese", "de": "German",
+    "zh": "Chinese",
+}
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 
@@ -92,11 +99,13 @@ def delete_conversation(conversation_id: int, db: Session = Depends(get_db)):
 async def send_message(
     conversation_id: int,
     data: ChatMessageCreate,
+    locale: Optional[str] = Query(None),
     db: Session = Depends(get_db),
 ):
     """
     Send a message in a conversation and stream the AI response back.
     Uses Server-Sent Events (SSE) for real-time streaming.
+    Accepts ?locale= to inject language directive into the system prompt.
     """
     conv = db.query(Conversation).filter(Conversation.id == conversation_id).first()
     if not conv:
@@ -106,10 +115,24 @@ async def send_message(
     if not char:
         raise HTTPException(status_code=404, detail="Character not found")
 
+    # Overlay translated system_prompt if available for this locale
+    if locale and locale != "zh":
+        tr = db.query(CharacterTranslation).filter(
+            CharacterTranslation.character_id == char.id,
+            CharacterTranslation.locale == locale,
+        ).first()
+        if tr and tr.system_prompt:
+            char.system_prompt = tr.system_prompt
+
+    # Inject language directive so the model replies in user's language
+    if locale and locale in LOCALE_LANGUAGE:
+        lang = LOCALE_LANGUAGE[locale]
+        directive = f"\n\n[IMPORTANT: Always reply in {lang}. Never switch languages.]"
+        char.system_prompt = char.system_prompt + directive
+
     async def event_stream():
         try:
             async for chunk in generate_reply_stream(char, conv, data.content, db):
-                # SSE format
                 yield f"data: {json.dumps({'content': chunk})}\n\n"
             yield f"data: {json.dumps({'done': True})}\n\n"
         except Exception as e:

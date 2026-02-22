@@ -11,7 +11,8 @@
     "deleting": "Excluindo...",
     "toggleSidebar": "Alternar barra lateral",
     "moreOptions": "Mais opções",
-    "language": "Idioma"
+    "language": "Idioma",
+    "settings": "Configurações"
   },
   "home": {
     "bannerTitle": "Crie seu companheiro de IA perfeito",
@@ -66,5 +67,37 @@
     "nsfw": "NSFW",
     "send": "Enviar",
     "thinking": "pensando..."
+  },
+  "settings": {
+    "title": "Configurações",
+    "subtitle": "Configure integrações e preferências da plataforma",
+    "telegramDesc": "Conecte um bot do Telegram para conversar com personagens de IA",
+    "connected": "Conectado",
+    "notConnected": "Não conectado",
+    "tokenSaved": "Token salvo",
+    "tokenPlaceholder": "Cole o token do bot do @BotFather",
+    "tokenReplace": "Cole um novo token para substituir...",
+    "testing": "Testando...",
+    "testToken": "Testar",
+    "tokenValid": "Válido",
+    "tokenInvalid": "Inválido",
+    "tokenHelp": "Obtenha um token do @BotFather no Telegram: envie /newbot e siga as instruções.",
+    "defaultChar": "ID do personagem padrão",
+    "defaultCharHelp": "O personagem que a IA usará quando um usuário do Telegram iniciar uma conversa. Usuários podem trocar com /char <id>.",
+    "enableBot": "Ativar bot",
+    "enableBotHelp": "Comece a receber mensagens do Telegram quando ativado",
+    "saving": "Salvando...",
+    "saveConnect": "Salvar e conectar",
+    "disconnect": "Desconectar",
+    "disconnected": "Desconectado",
+    "botDisabled": "Bot desativado",
+    "saveFailed": "Falha ao salvar",
+    "howTo": "Como configurar o Telegram",
+    "step1": "Abra o Telegram e pesquise @BotFather",
+    "step2": "Envie /newbot e escolha um nome e nome de usuário",
+    "step3": "Copie o token do bot (uma string longa como 123456:ABC-DEF1234ghIkl)",
+    "step4": "Cole acima, clique em \"Testar\" para verificar, depois \"Salvar e conectar\"",
+    "step5": "Abra seu bot no Telegram e envie /start",
+    "comingSoon": "Em breve"
   }
 }

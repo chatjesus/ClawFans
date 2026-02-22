@@ -11,7 +11,8 @@
     "deleting": "删除中...",
     "toggleSidebar": "切换侧边栏",
     "moreOptions": "更多选项",
-    "language": "语言"
+    "language": "语言",
+    "settings": "设置"
   },
   "home": {
     "bannerTitle": "打造你的完美 AI 伴侣",
@@ -66,5 +67,37 @@
     "nsfw": "成人",
     "send": "发送",
     "thinking": "思考中..."
+  },
+  "settings": {
+    "title": "设置",
+    "subtitle": "配置平台集成与偏好设置",
+    "telegramDesc": "连接 Telegram 机器人，与 AI 角色聊天",
+    "connected": "已连接",
+    "notConnected": "未连接",
+    "tokenSaved": "Token 已保存",
+    "tokenPlaceholder": "粘贴 @BotFather 给你的 Bot Token",
+    "tokenReplace": "粘贴新 Token 替换旧的...",
+    "testing": "测试中...",
+    "testToken": "测试",
+    "tokenValid": "有效",
+    "tokenInvalid": "无效",
+    "tokenHelp": "在 Telegram 搜索 @BotFather，发送 /newbot 按提示操作即可获取 Token。",
+    "defaultChar": "默认角色 ID",
+    "defaultCharHelp": "Telegram 用户开始聊天时默认使用的角色，用户可发送 /char <id> 切换。",
+    "enableBot": "启用机器人",
+    "enableBotHelp": "启用后将接收来自 Telegram 的消息",
+    "saving": "保存中...",
+    "saveConnect": "保存并连接",
+    "disconnect": "断开连接",
+    "disconnected": "已断开",
+    "botDisabled": "机器人已禁用",
+    "saveFailed": "保存失败",
+    "howTo": "Telegram 设置教程",
+    "step1": "打开 Telegram，搜索 @BotFather",
+    "step2": "发送 /newbot，按提示设置名称和用户名",
+    "step3": "复制机器人 Token（一长串类似 123456:ABC-DEF1234ghIkl 的字符串）",
+    "step4": "在上方粘贴，点击「测试」验证，然后点击「保存并连接」",
+    "step5": "在 Telegram 中打开你的机器人，发送 /start",
+    "comingSoon": "即将推出"
   }
 }

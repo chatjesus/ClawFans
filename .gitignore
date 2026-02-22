@@ -39,6 +39,7 @@ backend/uploads/avatars/*.webp
 credentials/
 *.json.key
 *.pem
+backend/platform_config.json
 
 # Logs
 *.log

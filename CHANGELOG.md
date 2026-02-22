@@ -4,6 +4,35 @@ All notable changes to the ClawFans project are documented here.
 
 ---
 
+## [0.3.1] - 2026-02-22 — Settings UI & Telegram Bot Fix
+
+### Added
+- `backend/api/settings.py`: Platform settings API with dynamic Telegram bot start/stop
+  - `GET /api/settings/telegram` — read config (token masked)
+  - `PUT /api/settings/telegram` — save & dynamically connect/disconnect bot
+  - `POST /api/settings/telegram/test` — validate token without saving
+  - `GET /api/settings/telegram/status` — real-time bot connection status
+  - Config persisted to `backend/platform_config.json` (gitignored)
+- `frontend/src/app/settings/page.tsx`: Settings page with Telegram config UI
+  - Token input with test + masked display of saved token
+  - Enable/disable toggle
+  - Default character ID picker
+  - Step-by-step setup guide
+  - Discord placeholder card
+- Sidebar "Settings" nav link (⚙️)
+- i18n translations for settings in all 8 languages (en/zh/ja/ko/es/fr/pt/de)
+
+### Fixed
+- **Telegram startup blocking server**: `auto_start_telegram()` was `await`-ed inside lifespan, blocking the entire server for 2-5s on startup. Changed to `asyncio.create_task()` so server accepts requests immediately.
+- **`bot.get_me()` timeout hang**: Added `asyncio.wait_for(..., timeout=8.0)` around the bot username lookup so slow/blocked Telegram API doesn't freeze the connect flow.
+- **Test button stuck at "Testing..."**: Frontend fetch had no timeout; added `AbortController` with 15s timeout so UI always recovers.
+- **Multiple uvicorn instances on port 8000**: Documented restart procedure to kill all stale processes before starting fresh.
+
+### Security
+- `platform_config.json` (contains bot token) added to `.gitignore`
+
+---
+
 ## [0.3.0] - 2026-02-22 — Gateway Architecture & Multi-Platform Foundation
 
 ### Added

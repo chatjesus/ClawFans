@@ -10,7 +10,7 @@ import {
   type ChatMessage,
   type Character,
 } from "@/lib/api";
-import { useT } from "@/contexts/I18nContext";
+import { useT, useI18n } from "@/contexts/I18nContext";
 
 interface Props {
   characterId: number;
@@ -77,6 +77,7 @@ function renderRoleplayText(text: string): React.ReactNode {
 
 export default function ChatInterface({ characterId }: Props) {
   const t = useT();
+  const { locale } = useI18n();
   const [character, setCharacter] = useState<Character | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
@@ -99,7 +100,7 @@ export default function ChatInterface({ characterId }: Props) {
   useEffect(() => {
     async function init() {
       try {
-        const char = await fetchCharacter(characterId);
+        const char = await fetchCharacter(characterId, locale);
         setCharacter(char);
 
         // Get-or-create: reuse existing conversation for this character
@@ -126,7 +127,8 @@ export default function ChatInterface({ characterId }: Props) {
       }
     }
     init();
-  }, [characterId]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [characterId, locale]);
 
   const handleSend = async () => {
     if (!input.trim() || isStreaming || !conversationId) return;
@@ -174,7 +176,8 @@ export default function ChatInterface({ characterId }: Props) {
         setIsStreaming(false);
         streamingTextRef.current = "";
         setStreamingText("");
-      }
+      },
+      locale,
     );
   };
 

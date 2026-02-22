@@ -11,7 +11,8 @@
     "deleting": "Wird gelöscht...",
     "toggleSidebar": "Seitenleiste umschalten",
     "moreOptions": "Weitere Optionen",
-    "language": "Sprache"
+    "language": "Sprache",
+    "settings": "Einstellungen"
   },
   "home": {
     "bannerTitle": "Erstelle deinen perfekten KI-Begleiter",
@@ -66,5 +67,37 @@
     "nsfw": "NSFW",
     "send": "Senden",
     "thinking": "denkt nach..."
+  },
+  "settings": {
+    "title": "Einstellungen",
+    "subtitle": "Plattform-Integrationen und Einstellungen konfigurieren",
+    "telegramDesc": "Verbinde einen Telegram-Bot, um mit KI-Charakteren zu chatten",
+    "connected": "Verbunden",
+    "notConnected": "Nicht verbunden",
+    "tokenSaved": "Token gespeichert",
+    "tokenPlaceholder": "Bot-Token von @BotFather einfügen",
+    "tokenReplace": "Neuen Token zum Ersetzen einfügen...",
+    "testing": "Teste...",
+    "testToken": "Testen",
+    "tokenValid": "Gültig",
+    "tokenInvalid": "Ungültig",
+    "tokenHelp": "Token von @BotFather auf Telegram erhalten: /newbot senden und den Anweisungen folgen.",
+    "defaultChar": "Standard-Charakter-ID",
+    "defaultCharHelp": "Der Charakter, den die KI verwendet, wenn ein Telegram-Nutzer chattet. Nutzer können mit /char <id> wechseln.",
+    "enableBot": "Bot aktivieren",
+    "enableBotHelp": "Nachrichten von Telegram empfangen, wenn aktiviert",
+    "saving": "Speichern...",
+    "saveConnect": "Speichern & Verbinden",
+    "disconnect": "Trennen",
+    "disconnected": "Getrennt",
+    "botDisabled": "Bot deaktiviert",
+    "saveFailed": "Speichern fehlgeschlagen",
+    "howTo": "Telegram einrichten",
+    "step1": "Telegram öffnen, @BotFather suchen",
+    "step2": "/newbot senden und Namen & Benutzernamen wählen",
+    "step3": "Bot-Token kopieren (lange Zeichenkette wie 123456:ABC-DEF1234ghIkl)",
+    "step4": "Oben einfügen, „Testen“ klicken zur Überprüfung, dann „Speichern & Verbinden“",
+    "step5": "Bot in Telegram öffnen und /start senden",
+    "comingSoon": "Demnächst"
   }
 }

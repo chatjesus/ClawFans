@@ -11,7 +11,8 @@
     "deleting": "삭제 중...",
     "toggleSidebar": "사이드바 전환",
     "moreOptions": "더 보기",
-    "language": "언어"
+    "language": "언어",
+    "settings": "설정"
   },
   "home": {
     "bannerTitle": "나만의 완벽한 AI 컴패니언 만들기",
@@ -66,5 +67,37 @@
     "nsfw": "성인",
     "send": "전송",
     "thinking": "생각 중..."
+  },
+  "settings": {
+    "title": "설정",
+    "subtitle": "플랫폼 연동 및 환경설정 구성",
+    "telegramDesc": "Telegram 봇을 연결하여 AI 캐릭터와 채팅",
+    "connected": "연결됨",
+    "notConnected": "연결 안 됨",
+    "tokenSaved": "Token 저장됨",
+    "tokenPlaceholder": "@BotFather에서 받은 봇 Token 붙여넣기",
+    "tokenReplace": "새 Token을 붙여넣어 교체...",
+    "testing": "테스트 중...",
+    "testToken": "테스트",
+    "tokenValid": "유효함",
+    "tokenInvalid": "무효",
+    "tokenHelp": "Telegram에서 @BotFather로 Token 받기: /newbot을 보내고 안내를 따르세요.",
+    "defaultChar": "기본 캐릭터 ID",
+    "defaultCharHelp": "Telegram 사용자가 채팅을 시작할 때 AI가 사용할 캐릭터. 사용자는 /char <id>로 전환 가능.",
+    "enableBot": "봇 활성화",
+    "enableBotHelp": "활성화하면 Telegram에서 메시지 수신 시작",
+    "saving": "저장 중...",
+    "saveConnect": "저장 및 연결",
+    "disconnect": "연결 해제",
+    "disconnected": "연결 해제됨",
+    "botDisabled": "봇 비활성화됨",
+    "saveFailed": "저장 실패",
+    "howTo": "Telegram 설정 방법",
+    "step1": "Telegram을 열고 @BotFather 검색",
+    "step2": "/newbot을 보내고 이름과 사용자명 선택",
+    "step3": "봇 Token(123456:ABC-DEF1234ghIkl 같은 긴 문자열) 복사",
+    "step4": "위에 붙여넣고 \"테스트\"로 확인한 후 \"저장 및 연결\" 클릭",
+    "step5": "Telegram에서 봇을 열고 /start 보내기",
+    "comingSoon": "곧 출시"
   }
 }

@@ -11,7 +11,8 @@
     "deleting": "Deleting...",
     "toggleSidebar": "Toggle sidebar",
     "moreOptions": "More options",
-    "language": "Language"
+    "language": "Language",
+    "settings": "Settings"
   },
   "home": {
     "bannerTitle": "Create Your Perfect AI Companion",
@@ -66,5 +67,37 @@
     "nsfw": "NSFW",
     "send": "Send",
     "thinking": "thinking..."
+  },
+  "settings": {
+    "title": "Settings",
+    "subtitle": "Configure platform integrations and preferences",
+    "telegramDesc": "Connect a Telegram bot to chat with AI characters",
+    "connected": "Connected",
+    "notConnected": "Not connected",
+    "tokenSaved": "Token saved",
+    "tokenPlaceholder": "Paste bot token from @BotFather",
+    "tokenReplace": "Paste new token to replace...",
+    "testing": "Testing...",
+    "testToken": "Test",
+    "tokenValid": "Valid",
+    "tokenInvalid": "Invalid",
+    "tokenHelp": "Get a token from @BotFather on Telegram: send /newbot and follow the prompts.",
+    "defaultChar": "Default Character ID",
+    "defaultCharHelp": "The character AI will use when a Telegram user starts chatting. Users can switch with /char <id>.",
+    "enableBot": "Enable Bot",
+    "enableBotHelp": "Start receiving messages from Telegram when enabled",
+    "saving": "Saving...",
+    "saveConnect": "Save & Connect",
+    "disconnect": "Disconnect",
+    "disconnected": "Disconnected",
+    "botDisabled": "Bot disabled",
+    "saveFailed": "Failed to save",
+    "howTo": "How to set up Telegram",
+    "step1": "Open Telegram, search for @BotFather",
+    "step2": "Send /newbot and choose a name & username",
+    "step3": "Copy the bot token (a long string like 123456:ABC-DEF1234ghIkl)",
+    "step4": "Paste it above, click \"Test\" to verify, then \"Save & Connect\"",
+    "step5": "Open your bot in Telegram and send /start",
+    "comingSoon": "Coming soon"
   }
 }

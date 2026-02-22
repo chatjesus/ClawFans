@@ -1,17 +1,59 @@
 """
 Character management API – CRUD operations for AI characters.
+Supports ?locale= parameter to overlay translated content.
 """
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import Optional
+from pydantic import BaseModel
 
-from models.database import get_db, Character
+from models.database import get_db, Character, CharacterTranslation
 from models.schemas import (
     CharacterCreate, CharacterUpdate, CharacterResponse, CharacterCard
 )
 
 router = APIRouter(prefix="/api/characters", tags=["characters"])
 
+SUPPORTED_LOCALES = {"en", "zh", "ja", "ko", "es", "fr", "pt", "de"}
+
+
+# ── Helpers ──────────────────────────────────────────────────────────────────
+
+def _apply_locale(char: Character, locale: Optional[str]) -> Character:
+    """Overlay translated fields onto the character object (non-destructive)."""
+    if not locale or locale == "zh":
+        return char  # zh is the native language, no overlay needed
+    if locale not in SUPPORTED_LOCALES:
+        return char
+
+    tr = next((t for t in char.translations if t.locale == locale), None)
+    if not tr:
+        return char
+
+    # Shadow the fields in-place without touching the ORM object
+    if tr.description:
+        char.description = tr.description
+    if tr.greeting:
+        char.greeting = tr.greeting
+    if tr.system_prompt:
+        char.system_prompt = tr.system_prompt
+    return char
+
+
+def _apply_locale_card(char: Character, locale: Optional[str]) -> Character:
+    """Overlay description only (for card listing)."""
+    if not locale or locale == "zh":
+        return char
+    if locale not in SUPPORTED_LOCALES:
+        return char
+
+    tr = next((t for t in char.translations if t.locale == locale), None)
+    if tr and tr.description:
+        char.description = tr.description
+    return char
+
+
+# ── Character CRUD ────────────────────────────────────────────────────────────
 
 @router.post("/", response_model=CharacterResponse, status_code=201)
 def create_character(data: CharacterCreate, db: Session = Depends(get_db)):
@@ -36,11 +78,12 @@ def create_character(data: CharacterCreate, db: Session = Depends(get_db)):
 def list_characters(
     category: Optional[str] = Query(None),
     search: Optional[str] = Query(None),
+    locale: Optional[str] = Query(None),
     skip: int = 0,
     limit: int = 50,
     db: Session = Depends(get_db),
 ):
-    """List characters with optional category filter and search."""
+    """List characters with optional category filter, search, and locale overlay."""
     query = db.query(Character).filter(Character.is_public == True)
 
     if category and category.lower() != "featured":
@@ -54,7 +97,12 @@ def list_characters(
         )
 
     query = query.order_by(Character.message_count.desc())
-    return query.offset(skip).limit(limit).all()
+    chars = query.offset(skip).limit(limit).all()
+
+    if locale and locale != "zh":
+        chars = [_apply_locale_card(c, locale) for c in chars]
+
+    return chars
 
 
 @router.get("/categories", response_model=list[str])
@@ -68,12 +116,16 @@ def list_categories(db: Session = Depends(get_db)):
 
 
 @router.get("/{character_id}", response_model=CharacterResponse)
-def get_character(character_id: int, db: Session = Depends(get_db)):
-    """Get a single character by ID."""
+def get_character(
+    character_id: int,
+    locale: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+):
+    """Get a single character, with optional locale overlay."""
     char = db.query(Character).filter(Character.id == character_id).first()
     if not char:
         raise HTTPException(status_code=404, detail="Character not found")
-    return char
+    return _apply_locale(char, locale)
 
 
 @router.put("/{character_id}", response_model=CharacterResponse)
@@ -105,3 +157,85 @@ def delete_character(character_id: int, db: Session = Depends(get_db)):
     db.delete(char)
     db.commit()
 
+
+# ── Translation CRUD ──────────────────────────────────────────────────────────
+
+class TranslationUpsert(BaseModel):
+    locale: str
+    description: Optional[str] = None
+    greeting: Optional[str] = None
+    system_prompt: Optional[str] = None
+
+
+class TranslationResponse(BaseModel):
+    id: int
+    character_id: int
+    locale: str
+    description: str
+    greeting: str
+    system_prompt: Optional[str]
+
+    model_config = {"from_attributes": True}
+
+
+@router.get("/{character_id}/translations", response_model=list[TranslationResponse])
+def list_translations(character_id: int, db: Session = Depends(get_db)):
+    """List all available translations for a character."""
+    char = db.query(Character).filter(Character.id == character_id).first()
+    if not char:
+        raise HTTPException(status_code=404, detail="Character not found")
+    return db.query(CharacterTranslation).filter(
+        CharacterTranslation.character_id == character_id
+    ).all()
+
+
+@router.put("/{character_id}/translations", response_model=TranslationResponse)
+def upsert_translation(
+    character_id: int,
+    data: TranslationUpsert,
+    db: Session = Depends(get_db),
+):
+    """Create or update a translation for a specific locale."""
+    char = db.query(Character).filter(Character.id == character_id).first()
+    if not char:
+        raise HTTPException(status_code=404, detail="Character not found")
+    if data.locale not in SUPPORTED_LOCALES:
+        raise HTTPException(status_code=400, detail=f"Unsupported locale: {data.locale}")
+
+    tr = db.query(CharacterTranslation).filter(
+        CharacterTranslation.character_id == character_id,
+        CharacterTranslation.locale == data.locale,
+    ).first()
+
+    if tr:
+        if data.description is not None:
+            tr.description = data.description
+        if data.greeting is not None:
+            tr.greeting = data.greeting
+        if data.system_prompt is not None:
+            tr.system_prompt = data.system_prompt
+    else:
+        tr = CharacterTranslation(
+            character_id=character_id,
+            locale=data.locale,
+            description=data.description or "",
+            greeting=data.greeting or "",
+            system_prompt=data.system_prompt,
+        )
+        db.add(tr)
+
+    db.commit()
+    db.refresh(tr)
+    return tr
+
+
+@router.get("/{character_id}/translations/{locale}", response_model=TranslationResponse)
+def get_translation(character_id: int, locale: str, db: Session = Depends(get_db)):
+    """Get a single translation."""
+    tr = db.query(CharacterTranslation).filter(
+        CharacterTranslation.character_id == character_id,
+        CharacterTranslation.locale == locale,
+    ).first()
+    if not tr:
+        raise HTTPException(status_code=404, detail="Translation not found")
+    return tr

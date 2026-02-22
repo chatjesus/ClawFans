@@ -11,7 +11,8 @@
     "deleting": "Suppression...",
     "toggleSidebar": "Basculer la barre latérale",
     "moreOptions": "Plus d'options",
-    "language": "Langue"
+    "language": "Langue",
+    "settings": "Paramètres"
   },
   "home": {
     "bannerTitle": "Créez votre compagnon IA parfait",
@@ -66,5 +67,37 @@
     "nsfw": "NSFW",
     "send": "Envoyer",
     "thinking": "réflexion..."
+  },
+  "settings": {
+    "title": "Paramètres",
+    "subtitle": "Configurer les intégrations et préférences de la plateforme",
+    "telegramDesc": "Connectez un bot Telegram pour discuter avec des personnages IA",
+    "connected": "Connecté",
+    "notConnected": "Non connecté",
+    "tokenSaved": "Token enregistré",
+    "tokenPlaceholder": "Collez le token du bot depuis @BotFather",
+    "tokenReplace": "Collez un nouveau token pour remplacer...",
+    "testing": "Test en cours...",
+    "testToken": "Tester",
+    "tokenValid": "Valide",
+    "tokenInvalid": "Invalide",
+    "tokenHelp": "Obtenez un token auprès de @BotFather sur Telegram : envoyez /newbot et suivez les instructions.",
+    "defaultChar": "ID du personnage par défaut",
+    "defaultCharHelp": "Le personnage que l'IA utilisera quand un utilisateur Telegram commence à discuter. Les utilisateurs peuvent changer avec /char <id>.",
+    "enableBot": "Activer le bot",
+    "enableBotHelp": "Commencez à recevoir des messages de Telegram quand activé",
+    "saving": "Enregistrement...",
+    "saveConnect": "Enregistrer et connecter",
+    "disconnect": "Déconnecter",
+    "disconnected": "Déconnecté",
+    "botDisabled": "Bot désactivé",
+    "saveFailed": "Échec de l'enregistrement",
+    "howTo": "Comment configurer Telegram",
+    "step1": "Ouvrez Telegram, recherchez @BotFather",
+    "step2": "Envoyez /newbot et choisissez un nom et un nom d'utilisateur",
+    "step3": "Copiez le token du bot (une longue chaîne comme 123456:ABC-DEF1234ghIkl)",
+    "step4": "Collez-le ci-dessus, cliquez sur « Tester » pour vérifier, puis « Enregistrer et connecter »",
+    "step5": "Ouvrez votre bot dans Telegram et envoyez /start",
+    "comingSoon": "Bientôt disponible"
   }
 }

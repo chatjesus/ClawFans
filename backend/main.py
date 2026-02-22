@@ -19,6 +19,7 @@ from api.chat import router as chat_router
 from api.auth import router as auth_router
 from api.upload import router as upload_router
 from api.gateway_api import router as gateway_router
+from api.settings import router as settings_router
 from services.llm_service import check_ollama_health, list_models
 
 
@@ -467,24 +468,25 @@ async def lifespan(app: FastAPI):
     registry = get_tool_registry()
     print(f"[OK] Tool registry initialized: {registry.list_tools()}")
 
-    # Start Telegram bot (if token is configured)
-    telegram_app = None
-    try:
-        from channels.telegram.adapter import start_telegram_polling, stop_telegram
-        telegram_app = await start_telegram_polling()
-        if telegram_app:
-            print("[OK] Telegram bot connected")
-        else:
-            print("[INFO] Telegram bot disabled (no token)")
-    except Exception as e:
-        print(f"[WARN] Telegram bot failed to start: {e}")
+    # Auto-start Telegram in background (non-blocking) so server is immediately ready
+    import asyncio as _asyncio
+    async def _bg_telegram():
+        try:
+            from api.settings import auto_start_telegram
+            await auto_start_telegram()
+        except Exception as e:
+            print(f"[WARN] Telegram auto-start failed: {e}")
+    _asyncio.create_task(_bg_telegram())
+    print("[OK] Telegram auto-start scheduled (background)")
 
     yield
     # Shutdown
     scheduler_task.cancel()
-    if telegram_app:
-        from channels.telegram.adapter import stop_telegram
-        await stop_telegram(telegram_app)
+    try:
+        from api.settings import _stop_telegram
+        await _stop_telegram()
+    except Exception:
+        pass
     print("[STOP] ClawFans shutting down...")
 
 
@@ -515,6 +517,7 @@ app.include_router(chat_router)
 app.include_router(auth_router)
 app.include_router(upload_router)
 app.include_router(gateway_router)
+app.include_router(settings_router)
 
 
 @app.get("/api/health")

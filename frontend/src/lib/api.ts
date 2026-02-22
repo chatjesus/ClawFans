@@ -87,18 +87,22 @@ export async function fetchHealth(): Promise<HealthStatus> {
 
 export async function fetchCharacters(
   category?: string,
-  search?: string
+  search?: string,
+  locale?: string,
 ): Promise<CharacterCard[]> {
   const params = new URLSearchParams();
   if (category && category !== "Featured") params.set("category", category);
   if (search) params.set("search", search);
+  if (locale && locale !== "zh") params.set("locale", locale);
   const res = await fetch(`${API_BASE}/api/characters?${params}`);
   if (!res.ok) throw new Error("Failed to fetch characters");
   return res.json();
 }
 
-export async function fetchCharacter(id: number): Promise<Character> {
-  const res = await fetch(`${API_BASE}/api/characters/${id}`);
+export async function fetchCharacter(id: number, locale?: string): Promise<Character> {
+  const params = new URLSearchParams();
+  if (locale && locale !== "zh") params.set("locale", locale);
+  const res = await fetch(`${API_BASE}/api/characters/${id}?${params}`);
   if (!res.ok) throw new Error("Character not found");
   return res.json();
 }
@@ -181,11 +185,14 @@ export async function sendMessageStream(
   content: string,
   onChunk: (text: string) => void,
   onDone: () => void,
-  onError: (error: string) => void
+  onError: (error: string) => void,
+  locale?: string,
 ): Promise<void> {
   try {
+    const params = new URLSearchParams();
+    if (locale && locale !== "zh") params.set("locale", locale);
     const res = await fetch(
-      `${API_BASE}/api/chat/conversations/${conversationId}/messages`,
+      `${API_BASE}/api/chat/conversations/${conversationId}/messages?${params}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },

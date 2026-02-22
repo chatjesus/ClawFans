@@ -11,7 +11,8 @@
     "deleting": "削除中...",
     "toggleSidebar": "サイドバー切替",
     "moreOptions": "その他のオプション",
-    "language": "言語"
+    "language": "言語",
+    "settings": "設定"
   },
   "home": {
     "bannerTitle": "完璧なAIコンパニオンを作ろう",
@@ -66,5 +67,37 @@
     "nsfw": "NSFW",
     "send": "送信",
     "thinking": "考え中..."
+  },
+  "settings": {
+    "title": "設定",
+    "subtitle": "プラットフォーム連携と設定を構成",
+    "telegramDesc": "Telegramボットを接続してAIキャラクターとチャット",
+    "connected": "接続済み",
+    "notConnected": "未接続",
+    "tokenSaved": "Tokenを保存しました",
+    "tokenPlaceholder": "@BotFatherから取得したボットTokenを貼り付け",
+    "tokenReplace": "新しいTokenを貼り付けて置換...",
+    "testing": "テスト中...",
+    "testToken": "テスト",
+    "tokenValid": "有効",
+    "tokenInvalid": "無効",
+    "tokenHelp": "Telegramで@BotFatherからTokenを取得：/newbotを送信して指示に従ってください。",
+    "defaultChar": "デフォルトキャラクターID",
+    "defaultCharHelp": "Telegramユーザーがチャットを開始したときにAIが使用するキャラクター。ユーザーは/char <id>で切り替え可能。",
+    "enableBot": "ボットを有効化",
+    "enableBotHelp": "有効にするとTelegramからメッセージを受信開始",
+    "saving": "保存中...",
+    "saveConnect": "保存して接続",
+    "disconnect": "切断",
+    "disconnected": "切断済み",
+    "botDisabled": "ボット無効",
+    "saveFailed": "保存に失敗しました",
+    "howTo": "Telegramの設定方法",
+    "step1": "Telegramを開き、@BotFatherを検索",
+    "step2": "/newbotを送信して名前とユーザー名を選択",
+    "step3": "ボットToken（123456:ABC-DEF1234ghIklのような長い文字列）をコピー",
+    "step4": "上に貼り付け、「テスト」で確認してから「保存して接続」をクリック",
+    "step5": "Telegramでボットを開き、/startを送信",
+    "comingSoon": "近日公開"
   }
 }

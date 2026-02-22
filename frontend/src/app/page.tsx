@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import CharacterCard from "@/components/CharacterCard";
 import { fetchCharacters, fetchCategories, type CharacterCard as CharacterCardType } from "@/lib/api";
-import { useT } from "@/contexts/I18nContext";
+import { useT, useI18n } from "@/contexts/I18nContext";
 
 const categoryIcons: Record<string, string> = {
   Featured: "\uD83D\uDD25", Romance: "\uD83D\uDC8B", Anime: "\uD83C\uDF38", Fantasy: "\u2694\uFE0F",
@@ -14,6 +14,7 @@ const categoryIcons: Record<string, string> = {
 
 export default function HomePage() {
   const t = useT();
+  const { locale } = useI18n();
   const [characters, setCharacters] = useState<CharacterCardType[]>([]);
   const [categories, setCategories] = useState<string[]>(["Featured"]);
   const [activeCategory, setActiveCategory] = useState("Featured");
@@ -25,10 +26,10 @@ export default function HomePage() {
 
   useEffect(() => {
     setLoading(true); setError(null);
-    fetchCharacters(activeCategory, searchQuery)
+    fetchCharacters(activeCategory, searchQuery, locale)
       .then((data) => { setCharacters(data); setLoading(false); })
       .catch((err) => { setError(err.message); setLoading(false); });
-  }, [activeCategory, searchQuery]);
+  }, [activeCategory, searchQuery, locale]);
 
   return (
     <div className="h-full overflow-y-auto">

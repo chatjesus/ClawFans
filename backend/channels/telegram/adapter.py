@@ -234,9 +234,7 @@ async def start_telegram_polling():
     await app.bot.set_my_commands(commands)
     await app.start()
     logger.info("Telegram bot started (polling mode)")
-
     await app.updater.start_polling(drop_pending_updates=True)
-
     return app
 
 

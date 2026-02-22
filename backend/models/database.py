@@ -1,11 +1,11 @@
 """
 SQLite database models for SynClub Local.
-Tables: users, characters, conversations, messages
+Tables: users, characters, conversations, messages, character_translations
 """
 from datetime import datetime
 from sqlalchemy import (
     create_engine, Column, Integer, String, Text, DateTime,
-    ForeignKey, Boolean, Float
+    ForeignKey, Boolean, Float, UniqueConstraint
 )
 from sqlalchemy.orm import declarative_base, sessionmaker, relationship
 
@@ -63,6 +63,25 @@ class Character(Base):
     creator = relationship("User", back_populates="characters")
     conversations = relationship("Conversation", back_populates="character")
     favorites = relationship("Favorite", back_populates="character")
+    translations = relationship("CharacterTranslation", back_populates="character",
+                                cascade="all, delete-orphan")
+
+
+class CharacterTranslation(Base):
+    """Stores translated content for a character in a specific locale."""
+    __tablename__ = "character_translations"
+    __table_args__ = (UniqueConstraint("character_id", "locale", name="uq_char_locale"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    character_id = Column(Integer, ForeignKey("characters.id"), nullable=False, index=True)
+    locale = Column(String(10), nullable=False, index=True)   # e.g. "en", "ja", "ko"
+    description = Column(Text, default="")
+    greeting = Column(Text, default="")
+    system_prompt = Column(Text, nullable=True)               # None = use original
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    character = relationship("Character", back_populates="translations")
 
 
 class Conversation(Base):
