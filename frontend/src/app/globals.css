@@ -1,0 +1,142 @@
+@import "tailwindcss";
+
+/* ── ClawFans Design Tokens ── */
+/* Inspired by SynClub's warm coral/rose palette, adapted for adult dark theme */
+:root {
+  --background: #100c0e;
+  --foreground: #f0e8ec;
+  --card-bg: #1a1216;
+  --card-border: #2e1f26;
+  --sidebar-bg: #0e0a0c;
+  --accent: #e8607a;
+  --accent-hover: #f07b90;
+  --accent-glow: rgba(232, 96, 122, 0.28);
+  --accent-2: #f4a0b0;
+  --muted: #9a8490;
+  --chat-user: #1e1218;
+  --chat-ai: #160e12;
+  --gradient-start: #e8607a;
+  --gradient-end: #f4a0b0;
+  --tag-bg: rgba(232, 96, 122, 0.15);
+  --tag-text: #f4a0b0;
+  --nsfw-badge: #ef4444;
+  --online-dot: #4ade80;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans, 'Segoe UI', Arial, Helvetica, sans-serif);
+}
+
+::selection {
+  background: rgba(232, 96, 122, 0.35);
+  color: #fff;
+}
+
+::-webkit-scrollbar {
+  width: 5px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #2e1f26;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--accent);
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.stream-chunk {
+  animation: fadeIn 0.15s ease-in;
+}
+
+/* Card hover lift — SynClub style */
+.card-hover-lift {
+  transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.card-hover-lift:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 32px rgba(232, 96, 122, 0.18), 0 0 0 1px rgba(232, 96, 122, 0.18);
+}
+
+/* Gradient text */
+.gradient-text {
+  background: linear-gradient(135deg, var(--gradient-start), var(--gradient-end));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Primary action button */
+.accent-btn {
+  background: linear-gradient(135deg, #e8607a, #d0405a);
+  transition: all 0.2s;
+  border: none;
+  cursor: pointer;
+}
+.accent-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #f07b90, #e8607a);
+  box-shadow: 0 4px 20px rgba(232, 96, 122, 0.38);
+}
+.accent-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* NSFW badge */
+.nsfw-tag {
+  background: rgba(239, 68, 68, 0.22);
+  color: #fca5a5;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* Image gradient overlay for character cards */
+.img-gradient-overlay {
+  background: linear-gradient(
+    to top,
+    rgba(16, 12, 14, 0.96) 0%,
+    rgba(16, 12, 14, 0.65) 28%,
+    rgba(16, 12, 14, 0.15) 55%,
+    transparent 100%
+  );
+}
+
+/* Banner */
+.banner-gradient {
+  background: linear-gradient(135deg, #1e0e14 0%, #2e1620 50%, #1e0e14 100%);
+}
+
+/* Category pill */
+.category-pill {
+  transition: all 0.18s;
+}
+.category-pill:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--foreground);
+}
+.category-pill.active {
+  background: linear-gradient(135deg, #e8607a, #d0405a);
+  color: #fff;
+  font-weight: 500;
+  border-color: transparent !important;
+}
+
+/* Nav active */
+.nav-active {
+  background: rgba(232, 96, 122, 0.12);
+  color: var(--accent-hover);
+}
