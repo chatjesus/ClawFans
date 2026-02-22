@@ -29,13 +29,37 @@ Return ONLY valid JSON array, no other text.
 """
 
 
+async def extract_memories_for_user(
+    db: DBSession,
+    user_id: str,
+    character_id: int,
+    user_text: str,
+    assistant_text: str,
+) -> list[dict]:
+    """Extract memories using user_id and character_id directly (no ChatSession needed)."""
+    return await _run_extraction(db, user_id, character_id, user_text, assistant_text)
+
+
 async def extract_memories(
     db: DBSession,
     session: ChatSession,
     user_text: str,
     assistant_text: str,
 ) -> list[dict]:
-    """Extract and persist memory facts from a conversation turn."""
+    """Extract and persist memory facts from a conversation turn (gateway path)."""
+    return await _run_extraction(
+        db, session.platform_user_id, session.character_id, user_text, assistant_text
+    )
+
+
+async def _run_extraction(
+    db: DBSession,
+    user_id: str,
+    character_id: int,
+    user_text: str,
+    assistant_text: str,
+) -> list[dict]:
+    """Core extraction logic shared by all paths."""
     prompt = EXTRACTION_PROMPT.format(
         user_text=user_text[:500],
         assistant_text=assistant_text[:500],
@@ -66,8 +90,8 @@ async def extract_memories(
             existing = (
                 db.query(UserMemory)
                 .filter(
-                    UserMemory.user_id == session.platform_user_id,
-                    UserMemory.character_id == session.character_id,
+                    UserMemory.user_id == user_id,
+                    UserMemory.character_id == character_id,
                     UserMemory.key == key,
                 )
                 .first()
@@ -79,8 +103,8 @@ async def extract_memories(
                 existing.updated_at = datetime.utcnow()
             else:
                 mem = UserMemory(
-                    user_id=session.platform_user_id,
-                    character_id=session.character_id,
+                    user_id=user_id,
+                    character_id=character_id,
                     key=key,
                     value=value,
                     confidence=0.7,
@@ -91,7 +115,7 @@ async def extract_memories(
 
         db.commit()
         if saved:
-            logger.info(f"Extracted {len(saved)} memories for user {session.platform_user_id}")
+            logger.info(f"Extracted {len(saved)} memories for user {user_id}")
         return saved
 
     except (json.JSONDecodeError, Exception) as e:

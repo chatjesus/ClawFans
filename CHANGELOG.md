@@ -4,6 +4,33 @@ All notable changes to the ClawFans project are documented here.
 
 ---
 
+## [0.4.0] - 2026-02-22 — Clerk Auth + Per-User Memory Isolation (in progress)
+
+### Added
+- `backend/auth/clerk.py`: Clerk JWT verification dependency
+  - Verifies Bearer tokens via Clerk JWKS endpoint (auto-discovered from `iss` claim)
+  - In-process JWKS cache to avoid per-request network calls
+  - Falls back to `"anonymous"` when no token present (backward compatible)
+- `Conversation.clerk_user_id`: New string column linking conversations to Clerk users
+- `memory/extractor.py`: New `extract_memories_for_user()` function (no ChatSession needed)
+- `memory/extractor.py`: Refactored to shared `_run_extraction()` core
+- `chat_service.py`: Memory injection into system prompt for identified users
+- `chat_service.py`: Background memory extraction after each web chat turn
+- `frontend/src/middleware.ts`: Route protection for `/chat/*` and `/create`
+- `frontend/src/app/sign-in/[[...sign-in]]/page.tsx`: Dark-themed Clerk sign-in page
+- `frontend/src/app/sign-up/[[...sign-up]]/page.tsx`: Dark-themed Clerk sign-up page
+- `frontend/.env.local`: Clerk key placeholders
+- `UserButton` in sidebar with sign-in link for unauthenticated users
+- Auth token passed to all conversation API calls
+
+### Changed
+- `api/chat.py`: Conversations scoped to `clerk_user_id` when authenticated
+- `api/chat.py`: `sendMessageStream` now carries Bearer token for user attribution
+- `lib/api.ts`: All conversation functions accept optional `token` parameter
+- `layout.tsx`: Wrapped with `ClerkProvider`
+
+---
+
 ## [0.3.1] - 2026-02-22 — Settings UI & Telegram Bot Fix
 
 ### Added

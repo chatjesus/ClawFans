@@ -89,6 +89,8 @@ class Conversation(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    # Clerk user identity (string) — separate from legacy integer user_id
+    clerk_user_id = Column(String(200), nullable=True, index=True)
     character_id = Column(Integer, ForeignKey("characters.id"), nullable=False)
     title = Column(String(200), default="New Chat")
     created_at = Column(DateTime, default=datetime.utcnow)

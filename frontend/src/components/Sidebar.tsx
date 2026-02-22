@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect, useCallback, useRef } from "react";
+import { UserButton, useAuth } from "@clerk/nextjs";
 import {
   fetchHealth,
   fetchConversations,
@@ -17,6 +18,7 @@ export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const { t, locale, setLocale } = useI18n();
+  const { getToken, isSignedIn } = useAuth();
   const [health, setHealth] = useState<HealthStatus | null>(null);
   const [collapsed, setCollapsed] = useState(false);
   const [recentChats, setRecentChats] = useState<Conversation[]>([]);
@@ -40,7 +42,7 @@ export default function Sidebar() {
   }, []);
 
   const loadChats = useCallback(() => {
-    fetchConversations()
+    getToken().then((token) => fetchConversations(undefined, token))
       .then((convs) => {
         const seen = new Map<number, Conversation>();
         for (const conv of convs) {
@@ -207,6 +209,36 @@ export default function Sidebar() {
           </div>
         </div>
       )}
+
+      {/* User account */}
+      <div className="px-3 mb-2 flex-shrink-0">
+        {!collapsed ? (
+          <div className="flex items-center gap-2.5 px-3 py-2 rounded-lg" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid var(--card-border)" }}>
+            <UserButton
+              appearance={{
+                elements: {
+                  avatarBox: "w-6 h-6",
+                  userButtonPopoverCard: "bg-[var(--card-bg)] border border-[var(--card-border)]",
+                },
+              }}
+            />
+            {isSignedIn && (
+              <span className="text-[11px] truncate" style={{ color: "var(--muted)" }}>
+                {(t.sidebar as Record<string, string>).account || "My Account"}
+              </span>
+            )}
+            {!isSignedIn && (
+              <Link href="/sign-in" className="text-[11px] transition-colors hover:text-white" style={{ color: "var(--accent)" }}>
+                {(t.sidebar as Record<string, string>).signIn || "Sign In"}
+              </Link>
+            )}
+          </div>
+        ) : (
+          <div className="flex justify-center">
+            <UserButton appearance={{ elements: { avatarBox: "w-6 h-6" } }} />
+          </div>
+        )}
+      </div>
 
       {/* Status footer */}
       <div className="p-3 border-t text-xs flex-shrink-0" style={{ borderColor: "var(--card-border)" }}>

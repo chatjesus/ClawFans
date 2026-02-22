@@ -4,6 +4,13 @@
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
+/** Build auth headers. Pass the Clerk token when available. */
+export function authHeaders(token?: string | null): HeadersInit {
+  const h: HeadersInit = { "Content-Type": "application/json" };
+  if (token) h["Authorization"] = `Bearer ${token}`;
+  return h;
+}
+
 // ── Types ──
 
 export interface CharacterCard {
@@ -126,11 +133,12 @@ export async function fetchCategories(): Promise<string[]> {
 }
 
 export async function createConversation(
-  characterId: number
+  characterId: number,
+  token?: string | null,
 ): Promise<Conversation> {
   const res = await fetch(`${API_BASE}/api/chat/conversations`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: authHeaders(token),
     body: JSON.stringify({ character_id: characterId }),
   });
   if (!res.ok) throw new Error("Failed to create conversation");
@@ -138,19 +146,25 @@ export async function createConversation(
 }
 
 export async function fetchConversation(
-  id: number
+  id: number,
+  token?: string | null,
 ): Promise<ConversationDetail> {
-  const res = await fetch(`${API_BASE}/api/chat/conversations/${id}`);
+  const res = await fetch(`${API_BASE}/api/chat/conversations/${id}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
   if (!res.ok) throw new Error("Conversation not found");
   return res.json();
 }
 
 export async function fetchConversations(
-  characterId?: number
+  characterId?: number,
+  token?: string | null,
 ): Promise<Conversation[]> {
   const params = new URLSearchParams();
   if (characterId) params.set("character_id", String(characterId));
-  const res = await fetch(`${API_BASE}/api/chat/conversations?${params}`);
+  const res = await fetch(`${API_BASE}/api/chat/conversations?${params}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
   if (!res.ok) return [];
   return res.json();
 }
@@ -187,6 +201,7 @@ export async function sendMessageStream(
   onDone: () => void,
   onError: (error: string) => void,
   locale?: string,
+  token?: string | null,
 ): Promise<void> {
   try {
     const params = new URLSearchParams();
@@ -195,7 +210,7 @@ export async function sendMessageStream(
       `${API_BASE}/api/chat/conversations/${conversationId}/messages?${params}`,
       {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: authHeaders(token),
         body: JSON.stringify({ content }),
       }
     );

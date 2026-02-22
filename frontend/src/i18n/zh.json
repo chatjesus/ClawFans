@@ -12,7 +12,9 @@
     "toggleSidebar": "切换侧边栏",
     "moreOptions": "更多选项",
     "language": "语言",
-    "settings": "设置"
+    "settings": "设置",
+    "account": "我的账号",
+    "signIn": "登录"
   },
   "home": {
     "bannerTitle": "打造你的完美 AI 伴侣",

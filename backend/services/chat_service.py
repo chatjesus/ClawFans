@@ -85,7 +85,7 @@ def replace_macros(text: str, char_name: str, user_name: str = "You") -> str:
     return text.replace("{{char}}", char_name).replace("{{user}}", user_name)
 
 
-def build_messages(character: Character, conversation: Conversation, db: Session) -> list[dict]:
+def build_messages(character: Character, conversation: Conversation, db: Session, user_id: str = "anonymous") -> list[dict]:
     """
     Build the full message list for the LLM:
       1. System: global rules + narrative framework + character card
@@ -98,6 +98,17 @@ def build_messages(character: Character, conversation: Conversation, db: Session
     system_content = replace_macros(SYSTEM_PROMPT, char_name)
     system_content += f"## Character Card: {char_name}\n"
     system_content += replace_macros(character.system_prompt, char_name)
+
+    # Inject user memories if available
+    if user_id != "anonymous":
+        try:
+            from memory.retriever import retrieve_memories
+            memories = retrieve_memories(db, user_id, character.id, limit=8)
+            if memories:
+                mem_lines = "\n".join(f"- {m.key}: {m.value}" for m in memories)
+                system_content += f"\n\n## What {char_name} Remembers About {{{{user}}}}\n{mem_lines}"
+        except Exception:
+            pass
 
     messages = [
         {"role": "system", "content": system_content},
@@ -136,12 +147,14 @@ async def generate_reply_stream(
     conversation: Conversation,
     user_message: str,
     db: Session,
+    user_id: str = "anonymous",
 ) -> AsyncGenerator[str, None]:
     """
     1. Persist user message
-    2. Build full context
+    2. Build full context (with memories if user is known)
     3. Stream LLM response
     4. Persist assistant reply + update stats
+    5. Background memory extraction
     """
     user_msg = Message(
         conversation_id=conversation.id,
@@ -151,7 +164,8 @@ async def generate_reply_stream(
     db.add(user_msg)
     db.commit()
 
-    context = build_messages(character, conversation, db)
+    # Inject memories into system prompt if user is identified
+    context = build_messages(character, conversation, db, user_id=user_id)
 
     full_reply = ""
     async for chunk in chat_completion_stream(context):
@@ -170,3 +184,29 @@ async def generate_reply_stream(
         # Expire all objects so the session releases its read snapshot,
         # allowing other requests (e.g. DELETE) to acquire SQLite write lock
         db.expire_all()
+
+        # Background memory extraction (non-blocking)
+        if user_id != "anonymous":
+            import asyncio as _asyncio
+            _asyncio.create_task(
+                _extract_web_memories(user_id, character.id, user_message, full_reply)
+            )
+
+
+async def _extract_web_memories(
+    user_id: str,
+    character_id: int,
+    user_text: str,
+    assistant_text: str,
+):
+    """Run memory extraction for web chat in a fresh DB session."""
+    from models.database import SessionLocal
+    from memory.extractor import extract_memories_for_user
+    db = SessionLocal()
+    try:
+        await extract_memories_for_user(db, user_id, character_id, user_text, assistant_text)
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"Web memory extraction failed: {e}")
+    finally:
+        db.close()

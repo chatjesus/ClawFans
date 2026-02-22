@@ -12,7 +12,9 @@
     "toggleSidebar": "Toggle sidebar",
     "moreOptions": "More options",
     "language": "Language",
-    "settings": "Settings"
+    "settings": "Settings",
+    "account": "My Account",
+    "signIn": "Sign In"
   },
   "home": {
     "bannerTitle": "Create Your Perfect AI Companion",

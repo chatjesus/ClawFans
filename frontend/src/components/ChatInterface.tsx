@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
+import { useAuth } from "@clerk/nextjs";
 import {
   sendMessageStream,
   fetchConversation,
@@ -78,6 +79,7 @@ function renderRoleplayText(text: string): React.ReactNode {
 export default function ChatInterface({ characterId }: Props) {
   const t = useT();
   const { locale } = useI18n();
+  const { getToken } = useAuth();
   const [character, setCharacter] = useState<Character | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
@@ -104,21 +106,22 @@ export default function ChatInterface({ characterId }: Props) {
         setCharacter(char);
 
         // Get-or-create: reuse existing conversation for this character
-        const existing = await fetchConversations(characterId);
+        const token = await getToken();
+        const existing = await fetchConversations(characterId, token);
 
         let convId: number;
         if (existing.length > 0) {
           // Reuse the most recent conversation
           convId = existing[existing.length - 1].id;
         } else {
-          const conv = await createConversation(characterId);
+          const conv = await createConversation(characterId, token);
           convId = conv.id;
         }
         setConversationId(convId);
         // Notify Sidebar to refresh its chat list now that the conversation exists
         window.dispatchEvent(new CustomEvent("conversation-ready", { detail: { characterId } }));
 
-        const detail = await fetchConversation(convId);
+        const detail = await fetchConversation(convId, token);
         if (detail.messages.length > 0) {
           setMessages(detail.messages);
         }
@@ -148,6 +151,7 @@ export default function ChatInterface({ characterId }: Props) {
     setStreamingText("");
     streamingTextRef.current = "";
 
+    const token = await getToken();
     await sendMessageStream(
       conversationId,
       userMessage,
@@ -178,6 +182,7 @@ export default function ChatInterface({ characterId }: Props) {
         setStreamingText("");
       },
       locale,
+      token,
     );
   };
 

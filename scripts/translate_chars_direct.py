@@ -44,15 +44,26 @@ def call_qwen(prompt: str) -> str | None:
 
 
 def parse_json(raw: str) -> dict | None:
+    # Try direct parse first
     try:
         return json.loads(raw)
     except Exception:
-        m = re.search(r'\{.*\}', raw, re.DOTALL)
-        if m:
-            try:
-                return json.loads(m.group(0))
-            except Exception:
-                pass
+        pass
+    # Try to extract first complete JSON object (handles truncated output)
+    depth = 0
+    start = raw.find("{")
+    if start == -1:
+        return None
+    for i, ch in enumerate(raw[start:], start):
+        if ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0:
+                try:
+                    return json.loads(raw[start:i+1])
+                except Exception:
+                    break
     return None
 
 
