@@ -43,12 +43,17 @@ credentials/
 *.pem
 backend/platform_config.json
 
-# Env files with secrets
+# Env files with secrets (NEVER commit .env with real keys)
+.env
 .env.local
 .env.production
 .env.*.local
 frontend/.env.local
 frontend/.env.production
+backend/.env
+
+# Migration logs
+scripts/r2_migrate_log.txt
 
 # Logs
 *.log

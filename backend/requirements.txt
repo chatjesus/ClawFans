@@ -1,10 +1,40 @@
+# ── Core Web Framework ────────────────────────────────────────────────────────
 fastapi==0.115.6
 uvicorn[standard]==0.34.0
-sqlalchemy==2.0.36
-pydantic==2.10.4
 python-multipart==0.0.18
+
+# ── Database ──────────────────────────────────────────────────────────────────
+sqlalchemy==2.0.36
+aiosqlite==0.20.0
+
+# ── Data Validation ───────────────────────────────────────────────────────────
+pydantic==2.10.4
+pydantic-settings==2.7.0
+
+# ── HTTP Clients ─────────────────────────────────────────────────────────────
 httpx==0.28.1
+requests==2.32.3
+
+# ── Authentication (Clerk JWT) ────────────────────────────────────────────────
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
+
+# ── File / Async ─────────────────────────────────────────────────────────────
 aiofiles==24.1.0
 
+# ── Telegram Bot ─────────────────────────────────────────────────────────────
+python-telegram-bot==21.10
+
+# ── Cloudflare R2 (S3-compatible image storage) ───────────────────────────────
+boto3==1.36.0
+
+# ── Environment Variables ─────────────────────────────────────────────────────
+python-dotenv==1.0.1
+
+# ── Optional: Google Gemini image generation (cloud fallback) ─────────────────
+# Uncomment if you want to use Gemini as image backend instead of ComfyUI:
+# google-genai==1.5.0
+
+# ── Optional: Translation scripts ────────────────────────────────────────────
+# Uncomment to run scripts/translate_chars_direct.py:
+# zhconv==1.4.3

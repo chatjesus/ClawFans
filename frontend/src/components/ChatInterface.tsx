@@ -14,6 +14,8 @@ import {
   type Character,
   type IntimacyUpdate,
   type StreakUpdate,
+  type ToolExecuting,
+  type ToolResult,
 } from "@/lib/api";
 import { useT, useI18n } from "@/contexts/I18nContext";
 
@@ -138,6 +140,8 @@ export default function ChatInterface({ characterId }: Props) {
   const [intimacyToast, setIntimacyToast] = useState<IntimacyUpdate | null>(null);
   const [streakDays, setStreakDays] = useState(0);
   const [streakToast, setStreakToast] = useState<StreakUpdate | null>(null);
+  const [toolExecuting, setToolExecuting] = useState<ToolExecuting | null>(null);
+  const [toolResult, setToolResult] = useState<ToolResult | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const streamingTextRef = useRef("");
@@ -163,6 +167,8 @@ export default function ChatInterface({ characterId }: Props) {
     setIntimacyToast(null);
     setStreakDays(0);
     setStreakToast(null);
+    setToolExecuting(null);
+    setToolResult(null);
     streamingTextRef.current = "";
 
     async function init() {
@@ -279,6 +285,28 @@ export default function ChatInterface({ characterId }: Props) {
           setStreakToast(streak);
           setTimeout(() => setStreakToast(null), 5000);
         }
+      },
+      (tool) => {
+        setToolExecuting(tool);
+        setToolResult(null);
+      },
+      (result) => {
+        setToolResult(result);
+        setToolExecuting(null);
+        setTimeout(() => setToolResult(null), 8000);
+      },
+      (followupText) => {
+        // Append tool follow-up to the last assistant message
+        setMessages((prev) => {
+          const last = [...prev];
+          for (let i = last.length - 1; i >= 0; i--) {
+            if (last[i].role === "assistant") {
+              last[i] = { ...last[i], content: last[i].content + "\n\n" + followupText };
+              break;
+            }
+          }
+          return last;
+        });
       },
     );
   };

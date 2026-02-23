@@ -2,6 +2,7 @@
 SQLite database models for ClawFans.
 Tables: users, characters, conversations, messages, character_translations
 """
+import os
 from datetime import datetime
 from sqlalchemy import (
     create_engine, Column, Integer, String, Text, DateTime,
@@ -9,7 +10,9 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import declarative_base, sessionmaker, relationship
 
-DATABASE_URL = "sqlite:///./synclub.db"
+# Allow overriding via environment variable for different environments.
+# Default: clawfans.db in the backend directory.
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./clawfans.db")
 
 engine = create_engine(
     DATABASE_URL,

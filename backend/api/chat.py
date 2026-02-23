@@ -283,13 +283,65 @@ async def send_message(
                 for img in generated:
                     yield f"data: {json.dumps({'image': img})}\n\n"
 
+            # ── Tool Call Execution ──────────────────────────────────────────
+            if result.tool_call:
+                tool_name = result.tool_call.get("tool", "")
+                tool_args = result.tool_call.get("args", {})
+
+                # Notify frontend: tool is executing
+                yield f"data: {json.dumps({'tool_executing': {'name': tool_name, 'args': tool_args}})}\n\n"
+
+                try:
+                    from actions.registry import get_tool_registry
+                    registry = get_tool_registry()
+                    tool_result = await registry.execute(tool_name, tool_args)
+
+                    # Notify frontend: tool result received
+                    yield f"data: {json.dumps({'tool_result': {'name': tool_name, 'success': tool_result.success, 'output': tool_result.output or tool_result.error or ''}})}\n\n"
+
+                    if tool_result.success:
+                        # Second LLM pass: incorporate tool result into character response
+                        from services.llm_service import chat_completion
+                        from services.chat_service import build_messages
+                        followup_context = build_messages(char, conv, db, user_id=user_id)
+                        # Append the tool result as context for the follow-up
+                        followup_context.append({
+                            "role": "assistant",
+                            "content": result.full_reply or "好的，我来帮你查一下。"
+                        })
+                        followup_context.append({
+                            "role": "system",
+                            "content": (
+                                f"工具「{tool_name}」执行完成，返回结果：\n{tool_result.output}\n\n"
+                                f"现在以{char.name}的身份，用自然的口吻把这个结果告诉用户。"
+                                f"保持角色人设，不要照抄原文，要像真人一样转述。"
+                                f"如果结果包含链接，可以直接引用。"
+                            ),
+                        })
+                        followup_text = await chat_completion(followup_context, max_tokens=400)
+                        if followup_text:
+                            # Save follow-up to DB (append to last assistant message)
+                            from models.database import Message as DBMessage
+                            last_msg = (
+                                db.query(DBMessage)
+                                .filter(DBMessage.conversation_id == conv.id, DBMessage.role == "assistant")
+                                .order_by(DBMessage.created_at.desc())
+                                .first()
+                            )
+                            if last_msg:
+                                last_msg.content = (last_msg.content or "") + "\n\n" + followup_text
+                                db.commit()
+                            yield f"data: {json.dumps({'tool_followup': followup_text})}\n\n"
+
+                except Exception as te:
+                    yield f"data: {json.dumps({'tool_result': {'name': tool_name, 'success': False, 'output': str(te)}})}\n\n"
+
             # Send intimacy update event
             if result.intimacy_update:
                 yield f"data: {json.dumps({'intimacy': result.intimacy_update})}\n\n"
 
             # Send streak update event (only on new-day milestones)
             if result.streak_update and result.streak_update.get("is_new_day"):
-                from services.streak_service import STREAK_MILESTONES
                 su = result.streak_update
                 milestone = su.get("milestone") or {}
                 yield f"data: {json.dumps({'streak': {'streak_days': su['streak_days'], 'broken': su.get('broken', False), 'milestone_toast': milestone.get('toast'), 'intimacy_bonus': milestone.get('intimacy_bonus', 0)}})}\n\n"

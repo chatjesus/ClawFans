@@ -5,6 +5,14 @@ Main application entry point.
 import os
 import sys
 
+# Load .env / .env.production before anything else
+try:
+    from dotenv import load_dotenv
+    _env_file = os.getenv("ENV_FILE", ".env")
+    load_dotenv(_env_file, override=False)  # override=False: existing env vars take priority
+except ImportError:
+    pass  # python-dotenv not installed (fine in Docker where env vars are injected)
+
 # Ensure the backend directory is in the Python path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 

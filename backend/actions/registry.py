@@ -81,7 +81,11 @@ def _register_builtin_tools(registry: ToolRegistry):
     from actions.web_search import web_search_tool
     from actions.schedule_message import schedule_message_tool
     from actions.generate_image import generate_image_tool
+    from actions.food_search import food_search_tool
+    from actions.weather import weather_tool
 
     registry.register(web_search_tool)
+    registry.register(food_search_tool)
+    registry.register(weather_tool)
     registry.register(schedule_message_tool)
     registry.register(generate_image_tool)

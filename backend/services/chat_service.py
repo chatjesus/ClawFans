@@ -24,6 +24,9 @@ from services.intimacy_service import (
 from services.schedule_service import build_schedule_prompt
 from services.streak_service import update_streak, build_streak_prompt
 
+import re as _re
+_TOOL_CALL_RE = _re.compile(r"```tool\s*\n?(\{.*?\})\s*\n?```", _re.DOTALL)
+
 MAX_CONTEXT_MESSAGES = 40
 
 # ─────────────────────────────────────────────
@@ -204,6 +207,21 @@ def build_messages(
     # Inject time-based character schedule state (morning/evening/night mood)
     system_content += build_schedule_prompt()
 
+    # Inject available tools so character can take real actions
+    try:
+        from actions.registry import get_tool_registry
+        registry = get_tool_registry()
+        tool_schemas = registry.get_schemas_text()
+        system_content += (
+            f"\n\n## 可用工具（Real Actions）\n"
+            f"{char_name} 可以执行真实操作。可用工具：\n{tool_schemas}\n\n"
+            f"使用工具时，在回复中插入：\n"
+            f"```tool\n{{\"tool\": \"<工具名>\", \"args\": {{<参数>}}}}\n```\n"
+            f"只在用户明确需要时才使用工具。工具调用会被后台执行，结果会补充到你的回复里。"
+        )
+    except Exception:
+        pass
+
     # Inject streak milestone context if user hit a milestone today
     if streak_info:
         streak_prompt = build_streak_prompt(streak_info)
@@ -282,11 +300,12 @@ def build_messages(
 
 
 class StreamResult:
-    """Holds the accumulated reply text, intimacy update, and streak info after streaming."""
+    """Holds the accumulated reply text, intimacy update, streak info, and tool call after streaming."""
     def __init__(self):
         self.full_reply = ""
         self.intimacy_update: dict | None = None
         self.streak_update: dict | None = None
+        self.tool_call: dict | None = None   # {"tool": name, "args": {...}}
 
 
 async def generate_reply_stream(
@@ -325,21 +344,33 @@ async def generate_reply_stream(
         full_reply += chunk
         yield chunk
 
-    if result_holder is not None:
-        result_holder.full_reply = full_reply
+    # Detect tool call in the response — strip the block from display text
+    tool_call_match = _TOOL_CALL_RE.search(full_reply)
+    if tool_call_match and result_holder is not None:
+        try:
+            import json as _json
+            tool_data = _json.loads(tool_call_match.group(1))
+            result_holder.tool_call = tool_data
+        except Exception:
+            pass
+    # Remove tool block from the stored reply (users shouldn't see raw JSON)
+    display_reply = _TOOL_CALL_RE.sub("", full_reply).strip()
 
-    if full_reply.strip():
+    if result_holder is not None:
+        result_holder.full_reply = display_reply
+
+    if display_reply.strip():
         assistant_msg = Message(
             conversation_id=conversation.id,
             role="assistant",
-            content=full_reply,
+            content=display_reply,
         )
         db.add(assistant_msg)
         character.message_count = (character.message_count or 0) + 2
 
         # Update intimacy level
         old_level = conversation.intimacy_level or 0
-        gain = calc_intimacy_gain(user_message, full_reply)
+        gain = calc_intimacy_gain(user_message, display_reply)
         new_level = max(0, min(100, old_level + gain))
         conversation.intimacy_level = new_level
 

@@ -221,6 +221,17 @@ export interface StreakUpdate {
   intimacy_bonus: number;
 }
 
+export interface ToolExecuting {
+  name: string;
+  args: Record<string, string>;
+}
+
+export interface ToolResult {
+  name: string;
+  success: boolean;
+  output: string;
+}
+
 /**
  * Send a message and stream the AI response via SSE.
  * Calls onChunk for each text chunk, onDone when complete.
@@ -239,6 +250,9 @@ export async function sendMessageStream(
   onGeneratingImage?: () => void,
   onIntimacy?: (update: IntimacyUpdate) => void,
   onStreak?: (update: StreakUpdate) => void,
+  onToolExecuting?: (tool: ToolExecuting) => void,
+  onToolResult?: (result: ToolResult) => void,
+  onToolFollowup?: (text: string) => void,
 ): Promise<void> {
   try {
     const params = new URLSearchParams();
@@ -285,6 +299,9 @@ export async function sendMessageStream(
           if (data.image) onImage?.(data.image as ChatImage);
           if (data.intimacy) onIntimacy?.(data.intimacy as IntimacyUpdate);
           if (data.streak) onStreak?.(data.streak as StreakUpdate);
+          if (data.tool_executing) onToolExecuting?.(data.tool_executing as ToolExecuting);
+          if (data.tool_result) onToolResult?.(data.tool_result as ToolResult);
+          if (data.tool_followup) onToolFollowup?.(data.tool_followup as string);
           if (data.done) { onDone(); return; }
           if (data.error) { onError(data.error); return; }
         } catch {
