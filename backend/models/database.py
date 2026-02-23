@@ -1,5 +1,5 @@
 """
-SQLite database models for SynClub Local.
+SQLite database models for ClawFans.
 Tables: users, characters, conversations, messages, character_translations
 """
 from datetime import datetime
@@ -57,6 +57,13 @@ class Character(Base):
     message_count = Column(Integer, default=0)
     star_count = Column(Integer, default=0)
     creator_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    # Rich lore / background story (shown on profile, injected into context)
+    backstory = Column(Text, default="")
+    # JSON array of reference image paths for visual consistency
+    # e.g. ["/uploads/refs/5/char_0.png", "/uploads/refs/5/char_1.png", ...]
+    ref_images = Column(Text, default="")
+    # Manual sort boost: higher = appears earlier in lists (default 0, new chars get 100)
+    sort_weight = Column(Integer, default=0)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

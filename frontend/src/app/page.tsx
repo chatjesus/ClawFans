@@ -39,11 +39,16 @@ export default function HomePage() {
           <div className="absolute -right-8 -top-8 w-32 h-32 rounded-full opacity-20" style={{ background: "radial-gradient(circle, #e8607a, transparent)" }} />
           <div className="absolute right-16 -bottom-6 w-20 h-20 rounded-full opacity-10" style={{ background: "radial-gradient(circle, #f4a0b0, transparent)" }} />
           <div className="flex -space-x-3 flex-shrink-0 relative z-10">
-            {["L","A","M","S"].map((letter, i) => (
-              <div key={letter} className="w-12 h-12 rounded-full border-2 flex items-center justify-center text-white font-bold text-sm"
-                style={{ borderColor: "#2e1f26", background: ["linear-gradient(135deg,#e8607a,#d0405a)","linear-gradient(135deg,#f4a0b0,#e8607a)","linear-gradient(135deg,#d0405a,#b03050)","linear-gradient(135deg,#f07b90,#e8607a)"][i] }}>
-                {letter}
+            {characters.slice(0, 4).map((char) => (
+              <div key={char.id} className="w-12 h-12 rounded-full border-2 overflow-hidden flex-shrink-0"
+                style={{ borderColor: "#2e1f26" }}>
+                <img src={char.avatar_url} alt={char.name} className="w-full h-full object-cover" />
               </div>
+            ))}
+            {/* Skeleton placeholders while characters load */}
+            {characters.length === 0 && [0,1,2,3].map((i) => (
+              <div key={i} className="w-12 h-12 rounded-full border-2 animate-pulse"
+                style={{ borderColor: "#2e1f26", background: ["linear-gradient(135deg,#e8607a,#d0405a)","linear-gradient(135deg,#f4a0b0,#e8607a)","linear-gradient(135deg,#d0405a,#b03050)","linear-gradient(135deg,#f07b90,#e8607a)"][i] }} />
             ))}
           </div>
           <div className="flex-1 min-w-0 relative z-10">

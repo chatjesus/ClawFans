@@ -88,6 +88,8 @@ class ConversationResponse(BaseModel):
     id: int
     character_id: int
     title: str
+    character_name: str = ""
+    character_avatar: str = ""
     created_at: datetime
     updated_at: datetime
 

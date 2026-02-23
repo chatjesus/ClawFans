@@ -1,6 +1,6 @@
 @echo off
 echo ========================================
-echo   SynClub Local - Frontend (Next.js)
+echo   ClawFans - Frontend (Next.js)
 echo ========================================
 echo.
 

@@ -1,7 +1,9 @@
 """
 Chat API – conversation management and streaming chat with AI characters.
 """
+import asyncio
 import json
+import re
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
@@ -12,13 +14,27 @@ from models.schemas import (
     ConversationCreate, ConversationResponse, ConversationDetail,
     ChatMessageCreate, ChatMessageResponse,
 )
-from services.chat_service import generate_reply_stream
+from services.chat_service import generate_reply_stream, process_reply_images, StreamResult
+from services.image_service import extract_image_tags, extract_scene_tags, get_pregenerated_scenes
+from services.scene_service import ensure_scenes_background
 from auth.clerk import get_current_user_id
 
+# Keywords that indicate the user wants to see an image / selfie
+IMAGE_INTENT_RE = re.compile(
+    r"(自拍|selfie|照片|photo|图片|picture|看看你|身材|胸部|胸|脸部|脸|腿|腰|"
+    r"正面照|侧面|背面|全身|半身|show me|send me|发(一张|张|个)|"
+    r"拍(一张|张|个)|take a pic|give me a pic|let me see you|show yourself|"
+    r"your pic|your photo|your selfie|your body|your figure|your face|your chest)",
+    re.IGNORECASE,
+)
+
 LOCALE_LANGUAGE = {
-    "en": "English", "ja": "Japanese", "ko": "Korean",
-    "es": "Spanish", "fr": "French", "pt": "Portuguese", "de": "German",
-    "zh": "Chinese",
+    "en": "English",
+    "zh": "Simplified Chinese", "zh-TW": "Traditional Chinese",
+    "ja": "Japanese", "ko": "Korean",
+    "es": "Spanish", "fr": "French", "pt": "Portuguese",
+    "de": "German", "ru": "Russian", "it": "Italian",
+    "th": "Thai", "vi": "Vietnamese", "id": "Indonesian", "ar": "Arabic",
 }
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
@@ -46,6 +62,14 @@ async def create_conversation(
     db.add(conv)
     db.commit()
     db.refresh(conv)
+
+    # Trigger scene pre-generation in background (non-blocking)
+    import asyncio
+    asyncio.create_task(ensure_scenes_background(
+        char.id, char.name, char.description or "",
+        char.system_prompt or "", char.avatar_url,
+    ))
+
     return conv
 
 
@@ -57,18 +81,33 @@ async def list_conversations(
     limit: int = 50,
     db: Session = Depends(get_db),
 ):
-    """List conversations, optionally filtered by character. Scoped to current user."""
+    """List conversations with character info, optionally filtered by character."""
+    from sqlalchemy.orm import joinedload
+
     user_id = await get_current_user_id(request)
-    query = db.query(Conversation)
+    query = db.query(Conversation).options(joinedload(Conversation.character))
     if user_id != "anonymous":
-        # Return only this user's conversations
         query = query.filter(
             (Conversation.clerk_user_id == user_id) |
-            (Conversation.clerk_user_id == None)  # noqa: E711 include legacy
+            (Conversation.clerk_user_id == None)  # noqa: E711
         )
     if character_id:
         query = query.filter(Conversation.character_id == character_id)
-    return query.order_by(Conversation.updated_at.desc()).offset(skip).limit(limit).all()
+    convs = query.order_by(Conversation.updated_at.desc()).offset(skip).limit(limit).all()
+
+    result = []
+    for conv in convs:
+        char = conv.character
+        result.append(ConversationResponse(
+            id=conv.id,
+            character_id=conv.character_id,
+            title=conv.title,
+            character_name=char.name if char else "",
+            character_avatar=char.avatar_url if char else "",
+            created_at=conv.created_at,
+            updated_at=conv.updated_at,
+        ))
+    return result
 
 
 @router.get("/conversations/{conversation_id}", response_model=ConversationDetail)
@@ -131,12 +170,18 @@ async def send_message(
     if not char:
         raise HTTPException(status_code=404, detail="Character not found")
 
-    # Overlay translated system_prompt if available for this locale
-    if locale and locale != "zh":
+    # Overlay translated system_prompt: requested locale → English → Chinese
+    if locale and locale not in ("zh", "zh-CN"):
         tr = db.query(CharacterTranslation).filter(
             CharacterTranslation.character_id == char.id,
             CharacterTranslation.locale == locale,
         ).first()
+        if not tr and locale != "en":
+            # Fallback to English
+            tr = db.query(CharacterTranslation).filter(
+                CharacterTranslation.character_id == char.id,
+                CharacterTranslation.locale == "en",
+            ).first()
         if tr and tr.system_prompt:
             char.system_prompt = tr.system_prompt
 
@@ -150,8 +195,98 @@ async def send_message(
 
     async def event_stream():
         try:
-            async for chunk in generate_reply_stream(char, conv, data.content, db, user_id=user_id):
-                yield f"data: {json.dumps({'content': chunk})}\n\n"
+            result = StreamResult()
+            gen = generate_reply_stream(
+                char, conv, data.content, db, user_id=user_id, result_holder=result
+            )
+            # Use a queue so keepalive timeouts never cancel the generator task
+            _DONE = object()
+            chunk_queue: asyncio.Queue = asyncio.Queue()
+
+            async def _drain():
+                try:
+                    async for chunk in gen:
+                        await chunk_queue.put(chunk)
+                except Exception as exc:
+                    await chunk_queue.put(exc)
+                finally:
+                    await chunk_queue.put(_DONE)
+
+            drain_task = asyncio.create_task(_drain())
+
+            while True:
+                try:
+                    item = await asyncio.wait_for(chunk_queue.get(), timeout=10.0)
+                    if item is _DONE:
+                        break
+                    if isinstance(item, Exception):
+                        raise item
+                    yield f"data: {json.dumps({'content': item})}\n\n"
+                except asyncio.TimeoutError:
+                    if drain_task.done():
+                        break
+                    yield ": keepalive\n\n"
+
+            await drain_task  # propagate any exception from the generator
+
+            has_img = result.full_reply and extract_image_tags(result.full_reply)
+            has_scene = result.full_reply and extract_scene_tags(result.full_reply)
+            user_wants_image = bool(IMAGE_INTENT_RE.search(data.content))
+
+            # Auto-inject: user asked for image but LLM didn't produce any tag
+            if user_wants_image and not (has_img or has_scene):
+                scenes = get_pregenerated_scenes(char.id)
+                if scenes:
+                    # Rotate scenes based on message count to avoid showing same image twice
+                    msg_count = db.query(Message).filter(
+                        Message.conversation_id == conv.id
+                    ).count()
+                    # Use msg_count as rotation seed so each reply gets a different scene
+                    idx = (msg_count // 2) % len(scenes)
+                    # Avoid repeating the scene that was last shown (stored in last 3 msgs)
+                    recent_content = " ".join(
+                        m.content for m in db.query(Message)
+                        .filter(Message.conversation_id == conv.id, Message.role == "assistant")
+                        .order_by(Message.created_at.desc())
+                        .limit(3)
+                        .all()
+                    )
+                    used_indices = {i for i in scenes if f"scene_{i}" in recent_content}
+                    available = {i: u for i, u in scenes.items() if i not in used_indices}
+                    if not available:
+                        available = scenes
+                    # Pick least-recently-used scene
+                    idx = min(available.keys())
+                    url = available[idx]
+                    alt = f"{char.name}"
+                    # Append to the stored assistant message
+                    last_msg = (
+                        db.query(Message)
+                        .filter(Message.conversation_id == conv.id, Message.role == "assistant")
+                        .order_by(Message.created_at.desc())
+                        .first()
+                    )
+                    if last_msg:
+                        last_msg.content = last_msg.content.rstrip() + f"\n\n![{alt}]({url})"
+                        db.commit()
+                    yield f"data: {json.dumps({'image': {'url': url, 'alt': alt}})}\n\n"
+
+            elif has_img or has_scene:
+                # Send instant pre-generated scenes first (no wait)
+                # Then signal generation for custom [IMG:] tags
+                if has_img:
+                    yield f"data: {json.dumps({'generating_image': True})}\n\n"
+
+                instant, generated = await process_reply_images(
+                    result.full_reply, conv.id, char.id, char.avatar_url, db
+                )
+                # Instant scenes arrive immediately
+                for img in instant:
+                    yield f"data: {json.dumps({'image': img})}\n\n"
+                # Generated images arrive after generation
+                for img in generated:
+                    yield f"data: {json.dumps({'image': img})}\n\n"
+
             yield f"data: {json.dumps({'done': True})}\n\n"
         except Exception as e:
             yield f"data: {json.dumps({'error': str(e)})}\n\n"

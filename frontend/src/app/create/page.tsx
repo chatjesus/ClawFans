@@ -32,10 +32,11 @@ function AvatarUploader({ value, onChange }: { value: string; onChange: (url: st
     try {
       const formData = new FormData();
       formData.append("file", file);
-      const res = await fetch("http://localhost:8000/api/upload/avatar", { method: "POST", body: formData });
+      const apiBase = (process.env.NEXT_PUBLIC_API_URL !== undefined && process.env.NEXT_PUBLIC_API_URL !== "undefined") ? process.env.NEXT_PUBLIC_API_URL : "";
+      const res = await fetch(`${apiBase}/api/upload/avatar`, { method: "POST", body: formData });
       if (!res.ok) { const err = await res.json(); throw new Error(err.detail || t.create.uploaderFailed); }
       const data = await res.json();
-      onChange("http://localhost:8000" + data.url);
+      onChange(apiBase + data.url);
     } catch (e) {
       setUploadError(e instanceof Error ? e.message : t.create.uploaderFailed);
     } finally {
@@ -50,7 +51,7 @@ function AvatarUploader({ value, onChange }: { value: string; onChange: (url: st
     if (f) upload(f);
   };
 
-  const previewSrc = value.startsWith("http") ? value : value.startsWith("/") ? "http://localhost:8000" + value : value;
+  const previewSrc = value.startsWith("http") ? value : value.startsWith("/") ? value : value;
 
   return (
     <div className="space-y-3">
@@ -104,7 +105,7 @@ function AvatarUploader({ value, onChange }: { value: string; onChange: (url: st
 
       <input
         type="url"
-        value={value.startsWith("http://localhost:8000") ? "" : value}
+        value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={t.create.uploaderUrlPlaceholder}
         className="w-full rounded-xl border px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-rose-500/40 focus:border-rose-500/40"

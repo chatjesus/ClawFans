@@ -1,8 +1,9 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 
+// Only hard-protect routes that truly require an account.
+// Chat is intentionally public — users get prompted inline when they need memory/sync.
 const isProtectedRoute = createRouteMatcher([
-  "/chat/(.*)",
-  "/create",
+  "/settings",  // Platform config requires auth
 ]);
 
 export default clerkMiddleware(async (auth, req) => {

@@ -497,10 +497,15 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS – allow the Next.js frontend
+# CORS – allow the Next.js frontend (local dev + production)
+_ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "https://clawfans.tinyclaw.dev",
+]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origins=_ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -509,6 +514,8 @@ app.add_middleware(
 # Mount uploads directory for character avatars
 os.makedirs("uploads", exist_ok=True)
 os.makedirs(os.path.join("uploads", "avatars"), exist_ok=True)
+os.makedirs(os.path.join("uploads", "generated"), exist_ok=True)
+os.makedirs(os.path.join("uploads", "scenes"), exist_ok=True)
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 # Include routers

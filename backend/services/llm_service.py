@@ -4,8 +4,9 @@ LLM Service – wraps Ollama API (OpenAI-compatible) for chat completions.
 import httpx
 from typing import AsyncGenerator
 
+import os
 OLLAMA_BASE_URL = "http://localhost:11434"
-DEFAULT_MODEL = "huihui_ai/qwen2.5-abliterate:14b"
+DEFAULT_MODEL = os.environ.get("OLLAMA_DEFAULT_MODEL", "qwen2.5:14b")
 
 
 async def chat_completion_stream(
@@ -25,9 +26,18 @@ async def chat_completion_stream(
         "options": {
             "temperature": temperature,
             "num_predict": max_tokens,
+            "num_ctx": 8192,
         },
     }
 
+    # #region agent log
+    import json as _jl, time as _tl
+    _total_chars = sum(len(m.get("content","")) for m in messages)
+    try:
+        with open("debug-c16f2f.log","a",encoding="utf-8") as _f:
+            _f.write(_jl.dumps({"sessionId":"c16f2f","runId":"run1","hypothesisId":"A","location":"llm_service.py:stream_start","message":"stream_request","data":{"total_chars":_total_chars,"num_messages":len(messages),"num_ctx":payload["options"]["num_ctx"]},"timestamp":int(_tl.time()*1000)})+"\n")
+    except Exception: pass
+    # #endregion
     try:
         async with httpx.AsyncClient(timeout=httpx.Timeout(300.0)) as client:
             async with client.stream(
@@ -42,6 +52,7 @@ async def chat_completion_stream(
                     )
                 response.raise_for_status()
                 import json
+                chunk_count = 0
                 async for line in response.aiter_lines():
                     if not line.strip():
                         continue
@@ -50,11 +61,25 @@ async def chat_completion_stream(
                         if "message" in data and "content" in data["message"]:
                             chunk = data["message"]["content"]
                             if chunk:
+                                chunk_count += 1
                                 yield chunk
                         if data.get("done", False):
+                            # #region agent log
+                            try:
+                                with open("debug-c16f2f.log","a",encoding="utf-8") as _f2:
+                                    _f2.write(_jl.dumps({"sessionId":"c16f2f","runId":"run1","hypothesisId":"A","location":"llm_service.py:stream_done","message":"stream_finished","data":{"chunk_count":chunk_count,"prompt_eval_count":data.get("prompt_eval_count"),"eval_count":data.get("eval_count")},"timestamp":int(_tl.time()*1000)})+"\n")
+                            except Exception: pass
+                            # #endregion
                             break
                     except json.JSONDecodeError:
                         continue
+                # #region agent log
+                if chunk_count == 0:
+                    try:
+                        with open("debug-c16f2f.log","a",encoding="utf-8") as _f3:
+                            _f3.write(_jl.dumps({"sessionId":"c16f2f","runId":"run1","hypothesisId":"A","location":"llm_service.py:empty","message":"EMPTY_RESPONSE","data":{"total_chars":_total_chars,"num_ctx_sent":payload["options"]["num_ctx"]},"timestamp":int(_tl.time()*1000)})+"\n")
+                    except Exception: pass
+                # #endregion
     except httpx.ConnectError:
         raise RuntimeError(
             "Cannot connect to Ollama. Make sure Ollama is running (ollama serve)."
@@ -77,6 +102,7 @@ async def chat_completion(
         "options": {
             "temperature": temperature,
             "num_predict": max_tokens,
+            "num_ctx": 8192,
         },
     }
 

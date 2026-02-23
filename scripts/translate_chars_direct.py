@@ -18,10 +18,14 @@ from sqlalchemy.exc import IntegrityError
 
 OLLAMA_URL  = "http://localhost:11434/api/generate"
 MODEL       = "qwen2.5:14b"
-ALL_LOCALES = ["en", "ja", "ko", "es", "fr", "pt", "de"]
+ALL_LOCALES = ["en", "zh-TW", "ja", "ko", "es", "fr", "pt", "de", "ru", "it", "th", "vi", "id", "ar"]
 LOCALE_NAMES = {
-    "en": "English", "ja": "Japanese", "ko": "Korean",
-    "es": "Spanish", "fr": "French", "pt": "Portuguese", "de": "German",
+    "en": "English",
+    "zh-TW": "Traditional Chinese",
+    "ja": "Japanese", "ko": "Korean",
+    "es": "Spanish", "fr": "French", "pt": "Portuguese",
+    "de": "German", "ru": "Russian", "it": "Italian",
+    "th": "Thai", "vi": "Vietnamese", "id": "Indonesian", "ar": "Arabic",
 }
 SP_MAX = 500  # chars of system_prompt to translate
 
@@ -32,7 +36,7 @@ def call_qwen(prompt: str) -> str | None:
         "prompt": prompt,
         "stream": False,
         "format": "json",
-        "options": {"temperature": 0.25, "num_predict": 900, "num_ctx": 3072},
+        "options": {"temperature": 0.25, "num_predict": 1400, "num_ctx": 4096},
     }
     try:
         r = requests.post(OLLAMA_URL, json=payload, timeout=120)
@@ -67,16 +71,50 @@ def parse_json(raw: str) -> dict | None:
     return None
 
 
+def s2t(text: str) -> str | None:
+    """Convert Simplified Chinese to Traditional Chinese via zhconv (fast, no LLM)."""
+    try:
+        import zhconv
+        return zhconv.convert(text, "zh-hant")
+    except ImportError:
+        return None
+
+
 def translate_char(char: Character, locale: str) -> dict | None:
+    # Special-case: Traditional Chinese = pure script conversion, no LLM needed
+    if locale == "zh-TW":
+        result_desc = s2t(char.description or "")
+        result_greet = s2t(char.greeting or "")
+        result_sp = s2t((char.system_prompt or "")[:SP_MAX])
+        if result_desc is not None:
+            return {
+                "description":   result_desc,
+                "greeting":      result_greet or "",
+                "system_prompt": result_sp or "",
+            }
+        # opencc not available – fall through to LLM
+
     lang = LOCALE_NAMES[locale]
     sp_src = (char.system_prompt or "")[:SP_MAX]
 
+    # English gets cultural localization; others get faithful translation
+    if locale == "en":
+        localization_note = (
+            "For English: do CULTURAL LOCALIZATION, not just translation.\n"
+            "- Replace Chinese-specific references naturally (e.g. 高考→college entrance exams, 996→996 work culture, 学姐→senior classmate).\n"
+            "- Keep the character's name and core identity unchanged.\n"
+            "- Make descriptions feel native to English-speaking audiences while preserving the NSFW/romantic tone.\n"
+        )
+    else:
+        localization_note = (
+            f"For {lang}: do accurate translation preserving all nuance and NSFW content.\n"
+        )
+
     prompt = (
-        f'You are a professional translator for an adult AI character roleplay app.\n'
-        f'Translate the following Chinese text into {lang}.\n'
-        f'Keep the tone, personality, and adult/NSFW nuance exactly.\n'
-        f'Translate field values but preserve any structural keywords like "Personality:", "Background:", etc.\n'
-        f'Output ONLY valid JSON with exactly these three keys.\n\n'
+        f'You are a professional localizer for an adult AI character roleplay app.\n'
+        f'{localization_note}'
+        f'Preserve structural keywords like "Personality:", "Background:", "【角色档案】" etc.\n'
+        f'Output ONLY valid JSON with exactly these three keys. Be concise.\n\n'
         f'Input:\n'
         f'description: {json.dumps(char.description or "", ensure_ascii=False)}\n'
         f'greeting: {json.dumps(char.greeting or "", ensure_ascii=False)}\n'

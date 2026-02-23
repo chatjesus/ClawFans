@@ -12,7 +12,9 @@
     "toggleSidebar": "Alternar barra lateral",
     "moreOptions": "Mais opções",
     "language": "Idioma",
-    "settings": "Configurações"
+    "settings": "Configurações",
+    "account": "Minha conta",
+    "signIn": "Entrar"
   },
   "home": {
     "bannerTitle": "Crie seu companheiro de IA perfeito",

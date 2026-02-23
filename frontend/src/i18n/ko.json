@@ -12,7 +12,9 @@
     "toggleSidebar": "사이드바 전환",
     "moreOptions": "더 보기",
     "language": "언어",
-    "settings": "설정"
+    "settings": "설정",
+    "account": "내 계정",
+    "signIn": "로그인"
   },
   "home": {
     "bannerTitle": "나만의 완벽한 AI 컴패니언 만들기",

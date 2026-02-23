@@ -14,6 +14,171 @@ import {
 import { useI18n } from "@/contexts/I18nContext";
 import { LOCALES, type Locale } from "@/i18n";
 
+// ── Timeline grouping helpers ──────────────────────────────────────────────
+
+function getTimeLabel(dateStr: string): string {
+  const now = new Date();
+  const d = new Date(dateStr);
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const yesterdayStart = new Date(todayStart.getTime() - 86400000);
+  const weekStart = new Date(todayStart.getTime() - 6 * 86400000);
+
+  if (d >= todayStart) return "today";
+  if (d >= yesterdayStart) return "yesterday";
+  if (d >= weekStart) return "week";
+  return "earlier";
+}
+
+const GROUP_LABELS: Record<string, string> = {
+  today: "今天",
+  yesterday: "昨天",
+  week: "本周",
+  earlier: "更早",
+};
+
+function groupByTimeline(chats: Conversation[]): { label: string; key: string; items: Conversation[] }[] {
+  const groups: Record<string, Conversation[]> = {};
+  const order = ["today", "yesterday", "week", "earlier"];
+  for (const conv of chats) {
+    const key = getTimeLabel(conv.updated_at);
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(conv);
+  }
+  return order.filter((k) => groups[k]?.length).map((k) => ({ key: k, label: GROUP_LABELS[k], items: groups[k] }));
+}
+
+// ── Avatar component ────────────────────────────────────────────────────────
+
+const AVATAR_GRADIENTS = [
+  "from-rose-600 to-pink-800",
+  "from-pink-600 to-rose-800",
+  "from-red-600 to-rose-800",
+  "from-fuchsia-600 to-pink-800",
+];
+
+function avatarGradient(name: string) {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = name.charCodeAt(i) + ((h << 5) - h);
+  return AVATAR_GRADIENTS[Math.abs(h) % AVATAR_GRADIENTS.length];
+}
+
+function ChatAvatar({ conv, size = 28, active }: { conv: Conversation; size?: number; active?: boolean }) {
+  const name = conv.character_name || conv.title;
+  const initials = name.slice(0, 1).toUpperCase();
+  return (
+    <div
+      className={`rounded-full flex-shrink-0 overflow-hidden flex items-center justify-center ${active ? "ring-2 ring-rose-400/60" : ""}`}
+      style={{ width: size, height: size, minWidth: size }}
+    >
+      {conv.character_avatar ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={conv.character_avatar} alt={name} className="w-full h-full object-cover" />
+      ) : (
+        <div className={`w-full h-full bg-gradient-to-br ${avatarGradient(name)} flex items-center justify-center text-white font-bold`}
+          style={{ fontSize: size * 0.42 }}
+        >
+          {initials}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Timeline component ──────────────────────────────────────────────────────
+
+function ChatTimeline({
+  chats, pathname, openMenuId, deletingCharId, onMenuToggle, onDelete, t,
+}: {
+  chats: Conversation[];
+  pathname: string;
+  openMenuId: number | null;
+  deletingCharId: number | null;
+  onMenuToggle: (id: number) => void;
+  onDelete: (conv: Conversation) => void;
+  t: ReturnType<typeof import("@/contexts/I18nContext").useI18n>["t"];
+}) {
+  const groups = groupByTimeline(chats);
+  return (
+    <div className="space-y-3 pb-2">
+      {groups.map((group) => (
+        <div key={group.key}>
+          {/* Timeline label */}
+          <p className="text-[10px] uppercase tracking-wider px-2 mb-1 font-medium" style={{ color: "var(--muted)" }}>
+            {group.label}
+          </p>
+          <div className="space-y-0.5">
+            {group.items.map((conv) => {
+              const chatPath = `/chat/${conv.character_id}`;
+              const active = pathname === chatPath;
+              const isMenuOpen = openMenuId === conv.id;
+              const isDeleting = deletingCharId === conv.character_id;
+              const name = conv.character_name || conv.title;
+              return (
+                <div key={conv.id} className="relative group">
+                  <Link
+                    href={chatPath}
+                    className={`flex items-center gap-2.5 px-2 py-1.5 rounded-lg transition-all ${active ? "nav-active" : "hover:bg-white/5"}`}
+                  >
+                    {/* Avatar */}
+                    {isDeleting ? (
+                      <div className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: "rgba(255,255,255,0.06)" }}>
+                        <span className="w-3 h-3 border border-rose-400 border-t-transparent rounded-full animate-spin" />
+                      </div>
+                    ) : (
+                      <ChatAvatar conv={conv} size={28} active={active} />
+                    )}
+
+                    {/* Name */}
+                    <span
+                      className={`truncate text-[12px] flex-1 ${active ? "font-medium" : ""}`}
+                      style={{ color: active ? "var(--text)" : "var(--muted)" }}
+                    >
+                      {isDeleting ? (t.sidebar.deleting) : name}
+                    </span>
+
+                    {/* ··· button */}
+                    {!isDeleting && (
+                      <button
+                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); onMenuToggle(conv.id); }}
+                        className="opacity-0 group-hover:opacity-100 flex-shrink-0 w-5 h-5 rounded flex items-center justify-center transition-all hover:bg-white/10"
+                        style={{ color: "var(--muted)" }}
+                        title={t.sidebar.moreOptions}
+                      >
+                        <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+                          <circle cx="3" cy="8" r="1.5"/><circle cx="8" cy="8" r="1.5"/><circle cx="13" cy="8" r="1.5"/>
+                        </svg>
+                      </button>
+                    )}
+                  </Link>
+
+                  {/* Dropdown */}
+                  {isMenuOpen && (
+                    <div className="absolute right-0 top-full mt-0.5 z-50 rounded-lg border py-1 shadow-xl min-w-[140px]"
+                      style={{ background: "var(--card-bg)", borderColor: "var(--card-border)", boxShadow: "0 8px 24px rgba(0,0,0,0.4)" }}
+                    >
+                      <button onClick={() => onDelete(conv)}
+                        className="w-full flex items-center gap-2.5 px-3 py-2 text-[12px] text-left transition-all hover:bg-red-500/10"
+                        style={{ color: "#f87171" }}
+                      >
+                        <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+                          <polyline points="3 6 13 6"/><path d="M5 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/><path d="M4 6l1 8h6l1-8"/>
+                        </svg>
+                        {t.sidebar.deleteChat}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── Main Sidebar ────────────────────────────────────────────────────────────
+
 export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
@@ -85,12 +250,31 @@ export default function Sidebar() {
     >
       {/* Logo */}
       <div className="p-4 flex items-center gap-2.5 flex-shrink-0">
-        <button onClick={() => setCollapsed(!collapsed)} className="text-xl hover:opacity-70 transition flex-shrink-0" title={t.sidebar.toggleSidebar}>
-          🦞
+        <button onClick={() => setCollapsed(!collapsed)} className="hover:opacity-70 transition flex-shrink-0" title={t.sidebar.toggleSidebar}>
+          {collapsed ? (
+            /* Icon-only: claw mark */
+            <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect width="28" height="28" rx="7" fill="#1a0d12"/>
+              <path d="M9 4 Q7.5 12 10 24" stroke="#e8607a" strokeWidth="2.5" strokeLinecap="round"/>
+              <path d="M14 3 Q12.5 12 14 25" stroke="#e8607a" strokeWidth="2.5" strokeLinecap="round"/>
+              <path d="M19 4 Q18 12 19 24" stroke="#c04060" strokeWidth="2.5" strokeLinecap="round"/>
+              <path d="M9 4 Q7.5 12 10 24" stroke="#f4a0b0" strokeWidth="0.8" strokeLinecap="round" opacity="0.5"/>
+              <path d="M14 3 Q12.5 12 14 25" stroke="#f4a0b0" strokeWidth="0.8" strokeLinecap="round" opacity="0.5"/>
+              <path d="M19 4 Q18 12 19 24" stroke="#f4a0b0" strokeWidth="0.8" strokeLinecap="round" opacity="0.5"/>
+            </svg>
+          ) : (
+            /* Full logo: claw + wordmark */
+            <svg width="120" height="28" viewBox="0 0 120 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M6 3 Q4.5 11 7 22" stroke="#e8607a" strokeWidth="2.5" strokeLinecap="round"/>
+              <path d="M11 2 Q9.5 11 11 23" stroke="#e8607a" strokeWidth="2.5" strokeLinecap="round"/>
+              <path d="M16 3 Q15 11 16 22" stroke="#c04060" strokeWidth="2.5" strokeLinecap="round"/>
+              <path d="M6 3 Q4.5 11 7 22" stroke="#f4a0b0" strokeWidth="0.8" strokeLinecap="round" opacity="0.5"/>
+              <path d="M11 2 Q9.5 11 11 23" stroke="#f4a0b0" strokeWidth="0.8" strokeLinecap="round" opacity="0.5"/>
+              <path d="M16 3 Q15 11 16 22" stroke="#f4a0b0" strokeWidth="0.8" strokeLinecap="round" opacity="0.5"/>
+              <text x="26" y="20" fontFamily="system-ui, -apple-system, sans-serif" fontWeight="800" fontSize="15" fill="white" letterSpacing="-0.3">Claw<tspan fill="#e8607a">Fans</tspan></text>
+            </svg>
+          )}
         </button>
-        {!collapsed && (
-          <Link href="/" className="font-bold text-lg gradient-text tracking-tight">{t.sidebar.brand}</Link>
-        )}
       </div>
 
       {/* Nav */}
@@ -110,62 +294,37 @@ export default function Sidebar() {
         ))}
       </nav>
 
-      {/* Recent Chats */}
+      {/* Recent Chats — timeline with avatar */}
       {!collapsed && recentChats.length > 0 && (
-        <div className="flex-1 overflow-y-auto mt-4 px-2" ref={menuRef}>
-          <p className="text-[10px] uppercase tracking-wider px-2 mb-2" style={{ color: "var(--muted)" }}>{t.sidebar.chats}</p>
-          <div className="space-y-0.5">
-            {recentChats.map((conv) => {
-              const chatPath = `/chat/${conv.character_id}`;
-              const active = pathname === chatPath;
-              const isMenuOpen = openMenuId === conv.id;
-              const isDeleting = deletingCharId === conv.character_id;
-              return (
-                <div key={conv.id} className="relative group">
-                  <Link href={chatPath}
-                    className={`flex items-center justify-between px-3 py-2 rounded-lg transition-all ${active ? "nav-active font-medium" : "hover:bg-white/5"}`}
-                    style={!active ? { color: "var(--muted)" } : undefined}
-                  >
-                    <span className="truncate text-[12px] flex-1 pr-1">
-                      {isDeleting ? (
-                        <span className="flex items-center gap-1.5">
-                          <span className="w-2 h-2 border border-current border-t-transparent rounded-full animate-spin" />
-                          {t.sidebar.deleting}
-                        </span>
-                      ) : conv.title}
-                    </span>
-                    {!isDeleting && (
-                      <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); setOpenMenuId(isMenuOpen ? null : conv.id); }}
-                        className="opacity-0 group-hover:opacity-100 flex-shrink-0 w-5 h-5 rounded flex items-center justify-center transition-all hover:bg-white/10"
-                        style={{ color: "var(--muted)" }} title={t.sidebar.moreOptions}
-                      >
-                        <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><circle cx="3" cy="8" r="1.5"/><circle cx="8" cy="8" r="1.5"/><circle cx="13" cy="8" r="1.5"/></svg>
-                      </button>
-                    )}
-                  </Link>
-                  {isMenuOpen && (
-                    <div className="absolute right-0 top-full mt-0.5 z-50 rounded-lg border py-1 shadow-xl min-w-[140px]"
-                      style={{ background: "var(--card-bg)", borderColor: "var(--card-border)", boxShadow: "0 8px 24px rgba(0,0,0,0.4)" }}
-                    >
-                      <button onClick={() => handleDelete(conv)}
-                        className="w-full flex items-center gap-2.5 px-3 py-2 text-[12px] text-left transition-all hover:bg-red-500/10"
-                        style={{ color: "#f87171" }}
-                      >
-                        <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-                          <polyline points="3 6 13 6"/><path d="M5 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/><path d="M4 6l1 8h6l1-8"/>
-                        </svg>
-                        {t.sidebar.deleteChat}
-                      </button>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+        <div className="flex-1 overflow-y-auto mt-3 px-2" ref={menuRef}>
+          <ChatTimeline
+            chats={recentChats}
+            pathname={pathname}
+            openMenuId={openMenuId}
+            deletingCharId={deletingCharId}
+            onMenuToggle={(id) => setOpenMenuId(openMenuId === id ? null : id)}
+            onDelete={handleDelete}
+            t={t}
+          />
         </div>
       )}
 
-      {(collapsed || recentChats.length === 0) && <div className="flex-1" />}
+      {/* Collapsed mode: stacked avatars only */}
+      {collapsed && recentChats.length > 0 && (
+        <div className="flex-1 overflow-y-auto py-2 flex flex-col items-center gap-1.5">
+          {recentChats.map((conv) => {
+            const chatPath = `/chat/${conv.character_id}`;
+            const active = pathname === chatPath;
+            return (
+              <Link key={conv.id} href={chatPath} title={conv.character_name || conv.title}>
+                <ChatAvatar conv={conv} size={32} active={active} />
+              </Link>
+            );
+          })}
+        </div>
+      )}
+
+      {recentChats.length === 0 && <div className="flex-1" />}
 
       {/* Language Picker */}
       {!collapsed && (

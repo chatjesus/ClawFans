@@ -30,16 +30,25 @@ Thumbs.db
 desktop.ini
 
 # Uploads (user-generated, not source code)
-backend/uploads/avatars/*.png
-backend/uploads/avatars/*.jpg
-backend/uploads/avatars/*.gif
-backend/uploads/avatars/*.webp
+backend/uploads/avatars/
+backend/uploads/refs/
+backend/uploads/scenes/
+!backend/uploads/avatars/.gitkeep
+!backend/uploads/refs/.gitkeep
+!backend/uploads/scenes/.gitkeep
 
 # Credentials (NEVER commit)
 credentials/
 *.json.key
 *.pem
 backend/platform_config.json
+
+# Env files with secrets
+.env.local
+.env.production
+.env.*.local
+frontend/.env.local
+frontend/.env.production
 
 # Logs
 *.log

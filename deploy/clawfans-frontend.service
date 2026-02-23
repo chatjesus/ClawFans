@@ -1,0 +1,37 @@
+# systemd service for ClawFans frontend (Next.js production)
+# Place at: /etc/systemd/system/clawfans-frontend.service
+# Then:
+#   systemctl daemon-reload
+#   systemctl enable clawfans-frontend
+#   systemctl start clawfans-frontend
+
+[Unit]
+Description=ClawFans Frontend (Next.js)
+After=network.target clawfans-backend.service
+
+[Service]
+Type=simple
+User=clawfans
+Group=clawfans
+WorkingDirectory=/opt/clawfans/frontend
+
+Environment=NODE_ENV=production
+Environment=PORT=3000
+
+# Load Clerk keys and other env vars
+EnvironmentFile=/opt/clawfans/frontend/.env.production
+
+ExecStart=/usr/bin/node_modules/.bin/next start -p 3000
+# If next is installed locally:
+# ExecStart=/opt/clawfans/frontend/node_modules/.bin/next start -p 3000
+
+Restart=always
+RestartSec=5
+
+StandardOutput=journal
+StandardError=journal
+
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

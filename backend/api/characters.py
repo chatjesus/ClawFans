@@ -14,23 +14,53 @@ from models.schemas import (
 
 router = APIRouter(prefix="/api/characters", tags=["characters"])
 
-SUPPORTED_LOCALES = {"en", "zh", "ja", "ko", "es", "fr", "pt", "de"}
+SUPPORTED_LOCALES = {
+    "en", "zh", "zh-TW",
+    "ja", "ko",
+    "es", "fr", "pt", "de", "ru", "it",
+    "th", "vi", "id", "ar",
+}
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
+def _get_best_translation(
+    char: Character, locale: str
+) -> Optional[CharacterTranslation]:
+    """
+    Find the best available translation with fallback chain:
+      requested locale → English → None (use original Chinese)
+    """
+    tr_map = {t.locale: t for t in char.translations}
+
+    # Exact match
+    tr = tr_map.get(locale)
+    if tr:
+        return tr
+
+    # English fallback (better than raw Chinese for non-Chinese users)
+    if locale != "en":
+        tr = tr_map.get("en")
+        if tr:
+            return tr
+
+    return None  # Fall through to original Chinese
+
+
 def _apply_locale(char: Character, locale: Optional[str]) -> Character:
-    """Overlay translated fields onto the character object (non-destructive)."""
-    if not locale or locale == "zh":
-        return char  # zh is the native language, no overlay needed
+    """
+    Overlay translated fields with fallback chain:
+      requested locale → English → Chinese (original)
+    """
+    if not locale or locale in ("zh", "zh-CN"):
+        return char  # Simplified Chinese is the native language
     if locale not in SUPPORTED_LOCALES:
         return char
 
-    tr = next((t for t in char.translations if t.locale == locale), None)
+    tr = _get_best_translation(char, locale)
     if not tr:
         return char
 
-    # Shadow the fields in-place without touching the ORM object
     if tr.description:
         char.description = tr.description
     if tr.greeting:
@@ -41,13 +71,13 @@ def _apply_locale(char: Character, locale: Optional[str]) -> Character:
 
 
 def _apply_locale_card(char: Character, locale: Optional[str]) -> Character:
-    """Overlay description only (for card listing)."""
-    if not locale or locale == "zh":
+    """Overlay description only (for card listing), with English fallback."""
+    if not locale or locale in ("zh", "zh-CN"):
         return char
     if locale not in SUPPORTED_LOCALES:
         return char
 
-    tr = next((t for t in char.translations if t.locale == locale), None)
+    tr = _get_best_translation(char, locale)
     if tr and tr.description:
         char.description = tr.description
     return char
@@ -80,7 +110,7 @@ def list_characters(
     search: Optional[str] = Query(None),
     locale: Optional[str] = Query(None),
     skip: int = 0,
-    limit: int = 50,
+    limit: int = 300,
     db: Session = Depends(get_db),
 ):
     """List characters with optional category filter, search, and locale overlay."""
@@ -96,7 +126,11 @@ def list_characters(
             | Character.tags.ilike(f"%{search}%")
         )
 
-    query = query.order_by(Character.message_count.desc())
+    query = query.order_by(
+        Character.sort_weight.desc(),
+        Character.message_count.desc(),
+        Character.created_at.desc(),
+    )
     chars = query.offset(skip).limit(limit).all()
 
     if locale and locale != "zh":

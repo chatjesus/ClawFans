@@ -1,6 +1,6 @@
 @echo off
 echo ========================================
-echo   SynClub Local - Backend Server
+echo   ClawFans - Backend Server
 echo ========================================
 echo.
 

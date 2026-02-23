@@ -4,7 +4,112 @@ All notable changes to the ClawFans project are documented here.
 
 ---
 
-## [0.4.0] - 2026-02-22 — Clerk Auth + Per-User Memory Isolation (in progress)
+## [0.7.0] - 2026-02-22 — Character Consistency & Scene Pre-generation
+
+### Added
+- **Character reference images**: Gemini 3 Pro Image now receives the character's avatar as a visual reference when generating in-chat images, producing characters that look consistent with their established appearance
+- **`services/scene_service.py`**: Scene pre-generation service
+  - Generates 5 tailored scene images per character using LLM-planned descriptions
+  - Uses character avatar as reference for visual consistency across all scenes
+  - Triggered automatically in background when a new conversation is created
+  - Retry logic (3 attempts per scene) for Gemini server resilience
+  - Per-character async lock prevents duplicate generation
+- **`[SCENE:N]` tag system**: Pre-generated scenes served instantly (zero wait)
+  - LLM is instructed to prefer `[SCENE:N]` tags in early messages for instant images
+  - `[SCENE:N]` tags are parsed, resolved, and replaced with markdown in DB
+  - Falls back to `[IMG:]` custom generation for scenes beyond the pre-generated set
+- **Scene availability prompt injection**: System prompt dynamically lists available pre-generated scenes so the LLM knows what's available
+- **`uploads/scenes/{character_id}/`**: Organized scene storage per character
+
+### Changed
+- `image_service.py`:
+  - `generate_image_gemini()` accepts optional `reference_image` bytes and `output_dir` for flexible storage
+  - `generate_image()` accepts `avatar_url` and resolves avatar to bytes for Gemini reference
+  - `_resolve_avatar_bytes()` loads avatars from `frontend/public/avatars/` or `backend/uploads/`
+  - Added `SCENE_TAG_PATTERN`, `extract_scene_tags()`, `replace_scene_tags()`, `get_pregenerated_scenes()`, `scenes_ready()`, `get_scene_dir()`
+  - `strip_image_tags()` now also strips `[SCENE:N]` tags
+- `chat_service.py`:
+  - `build_messages()` injects scene availability prompt into system message
+  - `process_reply_images()` handles both `[SCENE:N]` (instant) and `[IMG:]` (generated) tags
+  - Post-history instruction nudges LLM to use pre-generated scenes in early messages
+- `api/chat.py`:
+  - `create_conversation()` triggers background scene pre-generation via `asyncio.create_task`
+  - `event_stream()` sends instant scene images before generated images
+- `ChatInterface.tsx`: `stripImgTags()` also strips `[SCENE:N]` tags from display text
+- `main.py`: Creates `uploads/scenes/` directory on startup
+
+### Technical
+- Scene pre-generation runs fully in background (non-blocking conversation creation)
+- First 5 chat image moments are instant (~0ms vs ~30s for real-time generation)
+- Gemini multimodal input: avatar PNG sent as `Part.from_bytes()` alongside text prompt
+- Scene images stored as `scene_{N}.png` in `uploads/scenes/{char_id}/` for predictable lookup
+
+---
+
+## [0.6.0] - 2026-02-22 — In-Chat Image Generation (Gemini 3 Pro Image + ComfyUI)
+
+### Added
+- **`services/image_service.py`**: Dual-engine image generation service
+  - **Gemini 3 Pro Image** (cloud): High-quality reasoning-based generation via Vertex AI (`gemini-3-pro-image-preview`)
+  - **ComfyUI + NoobAI XL** (local): Uncensored anime-style generation, zero cloud cost
+  - Auto-detect available provider (prefers local ComfyUI, falls back to Gemini)
+  - `[IMG: description]` tag parsing, stripping, and markdown replacement utilities
+- **System prompt image instruction**: LLM now knows when and how to request image generation
+  - Uses `[IMG: detailed visual description]` tags in character responses
+  - Guidelines for sparing usage (~1 in 5-8 messages), consistent character visuals, and natural placement
+- **Extended SSE protocol**: Three new event types in chat streaming
+  - `{"generating_image": true}` — signals image generation has started
+  - `{"image": {"url": "...", "alt": "..."}}` — delivers generated image
+  - Images generated after text streaming completes (text is never delayed)
+- **`process_reply_images()`** in `chat_service.py`: Post-stream image tag detection, generation, and DB update
+- **`StreamResult`** class: Allows API layer to access accumulated reply text for image post-processing
+- **Frontend image rendering** in `ChatInterface.tsx`:
+  - Inline images in chat bubbles (both streaming and history)
+  - "Generating image..." loading spinner with pink accent animation
+  - Full-screen lightbox overlay (click image to zoom, click outside or × to close)
+  - `[IMG:]` tags stripped from displayed text during streaming
+  - `![alt](url)` markdown parsed from stored messages on reload
+- **`resolveImageUrl()`** helper: Resolves relative image URLs to absolute backend URLs
+- **`ChatImage`** TypeScript interface for type-safe image handling
+- **`uploads/generated/`** directory: Auto-created on startup for storing generated chat images
+
+### Changed
+- `api/chat.py`: `event_stream()` now performs image post-processing after text streaming
+- `chat_service.py`: `generate_reply_stream()` accepts `result_holder` for image tag extraction
+- `lib/api.ts`: `sendMessageStream()` extended with `onImage` and `onGeneratingImage` callbacks
+- `main.py`: Creates `uploads/generated/` directory on startup
+
+### Technical
+- Image generation is fully async and non-blocking
+- Text streaming latency is unaffected (images are a post-processing step)
+- Generated images served via existing `/uploads` static mount
+- DB messages store final content with `![alt](url)` markdown (survives page reload)
+- Dual-provider architecture: swap between cloud and local without code changes
+
+---
+
+## [0.5.0] - 2026-02-22 — Local Image Generation Pipeline (NoobAI XL)
+
+### Added
+- **NoobAI XL v1.1** (6.6GB) downloaded to `D:\AI_Models\checkpoints\`
+- **SDXL VAE fp16-fix** (319MB) downloaded to `D:\AI_Models\vae\`
+- **ComfyUI `extra_model_paths.yaml`**: Added `d_drive_models` path config scanning `D:\AI_Models\`
+- **`scripts/gen_char_images_local.py`**: Batch character image generator via ComfyUI API
+  - All 44 characters with tailored anime prompts
+  - External VAE support for NoobAI XL
+  - Auto-detect checkpoint and VAE from ComfyUI
+  - Skip-if-exists for resumable generation
+- **`scripts/update_avatars.py`**: Batch DB avatar URL updater for new characters
+- 44/44 character avatar images generated locally via NoobAI XL + ComfyUI
+
+### Technical
+- NoobAI XL downloaded from public `arcacolab/models` mirror (no HF token required)
+- curl.exe with resume support (`-C -`) for reliable large file downloads
+- ComfyUI SDXL txt2img workflow: 28 steps, euler_ancestral, karras scheduler, CFG 7.0
+
+---
+
+## [0.4.0] - 2026-02-22 — Clerk Auth + Per-User Memory Isolation
 
 ### Added
 - `backend/auth/clerk.py`: Clerk JWT verification dependency

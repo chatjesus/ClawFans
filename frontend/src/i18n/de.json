@@ -12,7 +12,9 @@
     "toggleSidebar": "Seitenleiste umschalten",
     "moreOptions": "Weitere Optionen",
     "language": "Sprache",
-    "settings": "Einstellungen"
+    "settings": "Einstellungen",
+    "account": "Mein Konto",
+    "signIn": "Anmelden"
   },
   "home": {
     "bannerTitle": "Erstelle deinen perfekten KI-Begleiter",

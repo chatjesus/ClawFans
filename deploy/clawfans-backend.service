@@ -1,0 +1,41 @@
+# systemd service for ClawFans backend (FastAPI + Uvicorn)
+# Place at: /etc/systemd/system/clawfans-backend.service
+# Then:
+#   systemctl daemon-reload
+#   systemctl enable clawfans-backend
+#   systemctl start clawfans-backend
+
+[Unit]
+Description=ClawFans Backend (FastAPI)
+After=network.target ollama.service
+Wants=ollama.service
+
+[Service]
+Type=simple
+User=clawfans
+Group=clawfans
+WorkingDirectory=/opt/clawfans/backend
+
+# Load environment variables from file
+EnvironmentFile=/opt/clawfans/backend/.env.production
+
+# Activate venv and run uvicorn
+ExecStart=/opt/clawfans/backend/venv/bin/uvicorn main:app \
+    --host 127.0.0.1 \
+    --port 8000 \
+    --workers 2 \
+    --log-level info \
+    --access-log
+
+Restart=always
+RestartSec=5
+
+# Logs → journald (view with: journalctl -u clawfans-backend -f)
+StandardOutput=journal
+StandardError=journal
+
+# Resource limits
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
