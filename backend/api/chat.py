@@ -104,6 +104,7 @@ async def list_conversations(
             title=conv.title,
             character_name=char.name if char else "",
             character_avatar=char.avatar_url if char else "",
+            intimacy_level=conv.intimacy_level or 0,
             created_at=conv.created_at,
             updated_at=conv.updated_at,
         ))
@@ -131,6 +132,7 @@ def get_conversation(conversation_id: int, db: Session = Depends(get_db)):
             )
             for m in conv.messages
         ],
+        intimacy_level=conv.intimacy_level or 0,
         created_at=conv.created_at,
         updated_at=conv.updated_at,
     )
@@ -232,6 +234,7 @@ async def send_message(
             has_img = result.full_reply and extract_image_tags(result.full_reply)
             has_scene = result.full_reply and extract_scene_tags(result.full_reply)
             user_wants_image = bool(IMAGE_INTENT_RE.search(data.content))
+            intimacy_level = conv.intimacy_level or 0
 
             # Auto-inject: user asked for image but LLM didn't produce any tag
             if user_wants_image and not (has_img or has_scene):
@@ -241,8 +244,6 @@ async def send_message(
                     msg_count = db.query(Message).filter(
                         Message.conversation_id == conv.id
                     ).count()
-                    # Use msg_count as rotation seed so each reply gets a different scene
-                    idx = (msg_count // 2) % len(scenes)
                     # Avoid repeating the scene that was last shown (stored in last 3 msgs)
                     recent_content = " ".join(
                         m.content for m in db.query(Message)
@@ -255,11 +256,9 @@ async def send_message(
                     available = {i: u for i, u in scenes.items() if i not in used_indices}
                     if not available:
                         available = scenes
-                    # Pick least-recently-used scene
                     idx = min(available.keys())
                     url = available[idx]
                     alt = f"{char.name}"
-                    # Append to the stored assistant message
                     last_msg = (
                         db.query(Message)
                         .filter(Message.conversation_id == conv.id, Message.role == "assistant")
@@ -272,20 +271,28 @@ async def send_message(
                     yield f"data: {json.dumps({'image': {'url': url, 'alt': alt}})}\n\n"
 
             elif has_img or has_scene:
-                # Send instant pre-generated scenes first (no wait)
-                # Then signal generation for custom [IMG:] tags
                 if has_img:
                     yield f"data: {json.dumps({'generating_image': True})}\n\n"
 
                 instant, generated = await process_reply_images(
-                    result.full_reply, conv.id, char.id, char.avatar_url, db
+                    result.full_reply, conv.id, char.id, char.avatar_url, db,
+                    intimacy_level=intimacy_level,
                 )
-                # Instant scenes arrive immediately
                 for img in instant:
                     yield f"data: {json.dumps({'image': img})}\n\n"
-                # Generated images arrive after generation
                 for img in generated:
                     yield f"data: {json.dumps({'image': img})}\n\n"
+
+            # Send intimacy update event
+            if result.intimacy_update:
+                yield f"data: {json.dumps({'intimacy': result.intimacy_update})}\n\n"
+
+            # Send streak update event (only on new-day milestones)
+            if result.streak_update and result.streak_update.get("is_new_day"):
+                from services.streak_service import STREAK_MILESTONES
+                su = result.streak_update
+                milestone = su.get("milestone") or {}
+                yield f"data: {json.dumps({'streak': {'streak_days': su['streak_days'], 'broken': su.get('broken', False), 'milestone_toast': milestone.get('toast'), 'intimacy_bonus': milestone.get('intimacy_bonus', 0)}})}\n\n"
 
             yield f"data: {json.dumps({'done': True})}\n\n"
         except Exception as e:

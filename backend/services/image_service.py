@@ -197,7 +197,40 @@ async def generate_image_gemini(
 
 # ── ComfyUI local generation ──
 
-async def generate_image_comfyui(prompt: str) -> Optional[str]:
+# Negative prompt tuned for NoobAI XL / Illustrious XL / Pony
+_COMFYUI_NEGATIVE_BASE = (
+    "worst quality, low quality, lowres, bad anatomy, bad hands, missing fingers, "
+    "extra digits, deformed, blurry, watermark, text, signature, multiple people, "
+    "split screen, panel layout, border, frame, multiple views, ugly, censored, mosaic"
+)
+# Extra negatives for NSFW — block conservative/modest outputs
+_COMFYUI_NEGATIVE_NSFW_EXTRA = (
+    ", flat chest, small breasts, fully clothed, conservative outfit, formal suit, "
+    "modest, covered up, turtleneck, thick clothing"
+)
+_COMFYUI_NEGATIVE = _COMFYUI_NEGATIVE_BASE
+
+
+def _build_sdxl_positive(prompt: str, nsfw: bool = False) -> str:
+    """
+    Prefix natural-language prompt with quality/style booster tags for NoobAI XL.
+    For NSFW: prepend ecchi/fanservice style boosters to ensure sexy output.
+    """
+    if nsfw:
+        boosters = (
+            "masterpiece, best quality, ultra-detailed, 8k, "
+            "1girl, solo, "
+            "ecchi, fanservice, sexy, alluring, "
+        )
+    else:
+        boosters = (
+            "masterpiece, best quality, ultra-detailed, 8k, "
+            "1girl, solo, "
+        )
+    return boosters + prompt
+
+
+async def generate_image_comfyui(prompt: str, nsfw: bool = False) -> Optional[str]:
     """Generate an image via local ComfyUI, return URL path."""
     try:
         checkpoint = await _get_comfyui_checkpoint()
@@ -205,12 +238,10 @@ async def generate_image_comfyui(prompt: str) -> Optional[str]:
             return None
         vae = await _get_comfyui_vae()
 
-        negative = (
-            "worst quality, low quality, bad anatomy, bad hands, missing fingers, "
-            "extra digits, deformed, blurry, watermark, text, multiple people"
-        )
+        positive = _build_sdxl_positive(prompt, nsfw=nsfw)
+        negative = _COMFYUI_NEGATIVE_BASE + (_COMFYUI_NEGATIVE_NSFW_EXTRA if nsfw else "")
         seed = int(time.time() * 1000) % (2 ** 32)
-        workflow = _build_comfyui_workflow(prompt, negative, checkpoint, vae, seed=seed)
+        workflow = _build_comfyui_workflow(positive, negative, checkpoint, vae, seed=seed, nsfw=nsfw)
 
         client_id = uuid.uuid4().hex
         payload = json.dumps({"prompt": workflow, "client_id": client_id})
@@ -271,44 +302,34 @@ async def _get_comfyui_vae() -> Optional[str]:
         return None
 
 
-def _build_comfyui_workflow(positive, negative, checkpoint, vae=None, seed=42):
+def _build_comfyui_workflow(positive, negative, checkpoint, vae=None, seed=42, nsfw=False):
+    # NoobAI XL vpred uses cfg=3-5; regular SDXL uses cfg=7; Pony uses cfg=6
+    is_vpred = any(x in checkpoint.lower() for x in ["vpred", "v_pred", "v-pred"])
+    cfg = 3.5 if is_vpred else 6.5
+    # Portrait: 832x1216 is the SDXL optimal portrait resolution
+    width, height = 832, 1216
+    base = {
+        "1": {"class_type": "CheckpointLoaderSimple", "inputs": {"ckpt_name": checkpoint}},
+        "3": {"class_type": "EmptyLatentImage", "inputs": {"width": width, "height": height, "batch_size": 1}},
+        "4": {"class_type": "CLIPTextEncode", "inputs": {"text": positive, "clip": ["1", 1]}},
+        "5": {"class_type": "CLIPTextEncode", "inputs": {"text": negative, "clip": ["1", 1]}},
+        "6": {
+            "class_type": "KSampler",
+            "inputs": {
+                "model": ["1", 0], "positive": ["4", 0], "negative": ["5", 0],
+                "latent_image": ["3", 0], "seed": seed,
+                "steps": 28, "cfg": cfg, "sampler_name": "euler_ancestral",
+                "scheduler": "karras", "denoise": 1.0,
+            },
+        },
+    }
     if vae:
-        return {
-            "1": {"class_type": "CheckpointLoaderSimple", "inputs": {"ckpt_name": checkpoint}},
-            "2": {"class_type": "VAELoader", "inputs": {"vae_name": vae}},
-            "3": {"class_type": "EmptyLatentImage", "inputs": {"width": 832, "height": 1216, "batch_size": 1}},
-            "4": {"class_type": "CLIPTextEncode", "inputs": {"text": positive, "clip": ["1", 1]}},
-            "5": {"class_type": "CLIPTextEncode", "inputs": {"text": negative, "clip": ["1", 1]}},
-            "6": {
-                "class_type": "KSampler",
-                "inputs": {
-                    "model": ["1", 0], "positive": ["4", 0], "negative": ["5", 0],
-                    "latent_image": ["3", 0], "seed": seed,
-                    "steps": 25, "cfg": 7.0, "sampler_name": "euler_ancestral",
-                    "scheduler": "karras", "denoise": 1.0,
-                },
-            },
-            "7": {"class_type": "VAEDecode", "inputs": {"samples": ["6", 0], "vae": ["2", 0]}},
-            "8": {"class_type": "SaveImage", "inputs": {"filename_prefix": "chat_img", "images": ["7", 0]}},
-        }
+        base["2"] = {"class_type": "VAELoader", "inputs": {"vae_name": vae}}
+        base["7"] = {"class_type": "VAEDecode", "inputs": {"samples": ["6", 0], "vae": ["2", 0]}}
     else:
-        return {
-            "1": {"class_type": "CheckpointLoaderSimple", "inputs": {"ckpt_name": checkpoint}},
-            "3": {"class_type": "EmptyLatentImage", "inputs": {"width": 832, "height": 1216, "batch_size": 1}},
-            "4": {"class_type": "CLIPTextEncode", "inputs": {"text": positive, "clip": ["1", 1]}},
-            "5": {"class_type": "CLIPTextEncode", "inputs": {"text": negative, "clip": ["1", 1]}},
-            "6": {
-                "class_type": "KSampler",
-                "inputs": {
-                    "model": ["1", 0], "positive": ["4", 0], "negative": ["5", 0],
-                    "latent_image": ["3", 0], "seed": seed,
-                    "steps": 25, "cfg": 7.0, "sampler_name": "euler_ancestral",
-                    "scheduler": "karras", "denoise": 1.0,
-                },
-            },
-            "7": {"class_type": "VAEDecode", "inputs": {"samples": ["6", 0], "vae": ["1", 2]}},
-            "8": {"class_type": "SaveImage", "inputs": {"filename_prefix": "chat_img", "images": ["7", 0]}},
-        }
+        base["7"] = {"class_type": "VAEDecode", "inputs": {"samples": ["6", 0], "vae": ["1", 2]}}
+    base["8"] = {"class_type": "SaveImage", "inputs": {"filename_prefix": "synclub", "images": ["7", 0]}}
+    return base
 
 
 async def _wait_comfyui_result(prompt_id: str, timeout: int = 120):
@@ -348,6 +369,7 @@ async def generate_image(
     provider: Optional[Provider] = None,
     avatar_url: Optional[str] = None,
     character_id: Optional[int] = None,
+    nsfw: bool = False,
 ) -> Optional[str]:
     """
     Generate an image from a text prompt with optional character reference.
@@ -361,7 +383,7 @@ async def generate_image(
         logger.warning("No image generation provider available")
         return None
 
-    logger.info(f"Generating image via {provider.value}: {prompt[:80]}...")
+    logger.info(f"Generating image via {provider.value} (nsfw={nsfw}): {prompt[:80]}...")
 
     # Prefer dedicated reference portrait over plain avatar thumbnail
     ref_bytes: Optional[bytes] = None
@@ -375,7 +397,7 @@ async def generate_image(
             logger.info(f"Using avatar fallback: {avatar_url} ({len(ref_bytes)//1024}KB)")
 
     if provider == Provider.COMFYUI:
-        return await generate_image_comfyui(prompt)
+        return await generate_image_comfyui(prompt, nsfw=nsfw)
     else:
         return await generate_image_gemini(prompt, reference_image=ref_bytes)
 

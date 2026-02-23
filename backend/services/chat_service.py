@@ -17,6 +17,12 @@ from services.image_service import (
     get_pregenerated_scenes,
 )
 from services.scene_service import build_scene_availability_prompt
+from services.intimacy_service import (
+    build_intimacy_prompt, augment_image_prompt,
+    calc_intimacy_gain, get_tier, get_next_tier,
+)
+from services.schedule_service import build_schedule_prompt
+from services.streak_service import update_streak, build_streak_prompt
 
 MAX_CONTEXT_MESSAGES = 40
 
@@ -171,7 +177,13 @@ def replace_macros(text: str, char_name: str, user_name: str = "You") -> str:
     return text.replace("{{char}}", char_name).replace("{{user}}", user_name)
 
 
-def build_messages(character: Character, conversation: Conversation, db: Session, user_id: str = "anonymous") -> list[dict]:
+def build_messages(
+    character: Character,
+    conversation: Conversation,
+    db: Session,
+    user_id: str = "anonymous",
+    streak_info: dict | None = None,
+) -> list[dict]:
     """
     Build the full message list for the LLM:
       1. System: global rules + narrative framework + character card
@@ -184,6 +196,19 @@ def build_messages(character: Character, conversation: Conversation, db: Session
     system_content = replace_macros(SYSTEM_PROMPT, char_name)
     system_content += f"## Character Card: {char_name}\n"
     system_content += replace_macros(character.system_prompt, char_name)
+
+    # Inject intimacy context (relationship stage + photo rules)
+    intimacy_level = getattr(conversation, "intimacy_level", 0) or 0
+    system_content += build_intimacy_prompt(intimacy_level)
+
+    # Inject time-based character schedule state (morning/evening/night mood)
+    system_content += build_schedule_prompt()
+
+    # Inject streak milestone context if user hit a milestone today
+    if streak_info:
+        streak_prompt = build_streak_prompt(streak_info)
+        if streak_prompt:
+            system_content += replace_macros(streak_prompt, char_name)
 
     # Inject pre-generated scene availability
     scene_prompt = build_scene_availability_prompt(character.id)
@@ -257,9 +282,11 @@ def build_messages(character: Character, conversation: Conversation, db: Session
 
 
 class StreamResult:
-    """Holds the accumulated reply text after streaming finishes."""
+    """Holds the accumulated reply text, intimacy update, and streak info after streaming."""
     def __init__(self):
         self.full_reply = ""
+        self.intimacy_update: dict | None = None
+        self.streak_update: dict | None = None
 
 
 async def generate_reply_stream(
@@ -272,19 +299,12 @@ async def generate_reply_stream(
 ) -> AsyncGenerator[str, None]:
     """
     1. Persist user message
-    2. Build full context (with memories if user is known)
+    2. Build full context (with memories + intimacy if user is known)
     3. Stream LLM response
-    4. Persist assistant reply + update stats
+    4. Persist assistant reply + update stats + update intimacy
     5. Background memory extraction
-    6. Store full_reply in result_holder for image post-processing by caller
+    6. Store full_reply + intimacy_update in result_holder for post-processing
     """
-    # #region agent log
-    import json as _jl2, time as _tl2
-    try:
-        with open("debug-c16f2f.log","a",encoding="utf-8") as _f:
-            _f.write(_jl2.dumps({"sessionId":"c16f2f","runId":"run1","hypothesisId":"A","location":"chat_service.py:generate_reply_stream","message":"reply_start","data":{"conv_id":conversation.id,"char":character.name,"user_msg_preview":user_message[:40]},"timestamp":int(_tl2.time()*1000)})+"\n")
-    except Exception: pass
-    # #endregion
     user_msg = Message(
         conversation_id=conversation.id,
         role="user",
@@ -293,7 +313,12 @@ async def generate_reply_stream(
     db.add(user_msg)
     db.commit()
 
-    context = build_messages(character, conversation, db, user_id=user_id)
+    # Update streak (first message of the day increments counter)
+    streak_info = update_streak(conversation, db)
+    if result_holder is not None and streak_info.get("is_new_day"):
+        result_holder.streak_update = streak_info
+
+    context = build_messages(character, conversation, db, user_id=user_id, streak_info=streak_info)
 
     full_reply = ""
     async for chunk in chat_completion_stream(context):
@@ -311,6 +336,29 @@ async def generate_reply_stream(
         )
         db.add(assistant_msg)
         character.message_count = (character.message_count or 0) + 2
+
+        # Update intimacy level
+        old_level = conversation.intimacy_level or 0
+        gain = calc_intimacy_gain(user_message, full_reply)
+        new_level = max(0, min(100, old_level + gain))
+        conversation.intimacy_level = new_level
+
+        # Detect tier change
+        old_tier = get_tier(old_level)
+        new_tier = get_tier(new_level)
+        tier_unlocked = new_tier.threshold > old_tier.threshold
+
+        if result_holder is not None:
+            result_holder.intimacy_update = {
+                "level": new_level,
+                "gained": gain,
+                "tier": new_tier.name_cn,
+                "tier_en": new_tier.name_en,
+                "tier_unlocked": tier_unlocked,
+                "unlocked_tier_name": new_tier.name_cn if tier_unlocked else None,
+                "next_threshold": get_next_tier(new_level).threshold if get_next_tier(new_level) else 100,
+            }
+
         db.commit()
         db.expire_all()
 
@@ -327,9 +375,11 @@ async def process_reply_images(
     character_id: int,
     avatar_url: str | None,
     db: Session,
+    intimacy_level: int = 0,
 ) -> tuple[list[dict], list[dict]]:
     """
     Process both [SCENE:n] (instant) and [IMG:] (generated) tags.
+    Augments [IMG:] prompts with intimacy-appropriate visual tags.
     Returns (instant_images, generated_images) for SSE events.
     """
     import logging
@@ -350,18 +400,21 @@ async def process_reply_images(
                 scene_idx_to_url[idx] = url
                 logger.info(f"Serving pre-generated scene {idx}: {url}")
 
-    # 2. Handle [IMG:] tags — generate with avatar reference
+    # 2. Handle [IMG:] tags — generate with avatar reference + intimacy augmentation
     img_tags = extract_image_tags(full_reply)
     tag_to_url: dict[str, str] = {}
+    is_nsfw = intimacy_level >= 40
 
     if img_tags:
-        logger.info(f"Generating {len(img_tags)} image(s) with avatar reference...")
+        logger.info(f"Generating {len(img_tags)} image(s) with intimacy={intimacy_level}...")
         for desc in img_tags:
-            url = await generate_image(desc, avatar_url=avatar_url)
+            # Augment prompt with intimacy-appropriate tags
+            augmented = augment_image_prompt(desc, intimacy_level)
+            url = await generate_image(augmented, avatar_url=avatar_url, nsfw=is_nsfw)
             if url:
                 generated_images.append({"url": url, "alt": desc})
                 tag_to_url[desc] = url
-                logger.info(f"Generated: {url}")
+                logger.info(f"Generated (intimacy={intimacy_level}): {url}")
             else:
                 logger.warning(f"Failed to generate: {desc[:60]}")
 

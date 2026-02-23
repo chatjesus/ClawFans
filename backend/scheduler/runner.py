@@ -1,6 +1,6 @@
 """
 Scheduler runner: periodically checks for due jobs and executes them.
-Will be connected to the gateway for message delivery in M7.
+Handles proactive message delivery via Telegram.
 """
 import asyncio
 import logging
@@ -53,24 +53,79 @@ async def _execute_job(job: ScheduledJob, db: DBSession):
     import json
     payload = json.loads(job.payload_json) if job.payload_json else {}
 
-    if job.job_type == "send_message":
-        # Will be implemented in M7: route through gateway to deliver message
-        logger.info(
-            f"[STUB] Would send message to user {job.user_id} "
-            f"on {job.platform}: {payload.get('text', '')}"
-        )
+    if job.job_type == "proactive_message":
+        await _send_proactive(job, payload)
+
+    elif job.job_type == "send_message":
+        # Generic send: route by platform
+        if job.platform == "telegram":
+            chat_id = payload.get("chat_id") or job.user_id
+            text = payload.get("text", "")
+            await _send_telegram(chat_id, text)
+        else:
+            logger.info(
+                f"[send_message] platform={job.platform} "
+                f"user={job.user_id}: {payload.get('text', '')}"
+            )
+
     elif job.job_type == "morning_greeting":
         logger.info(f"[STUB] Morning greeting for user {job.user_id}")
+
     else:
         logger.warning(f"Unknown job type: {job.job_type}")
 
 
+async def _send_proactive(job: ScheduledJob, payload: dict):
+    """Send a proactive character message via Telegram."""
+    chat_id = payload.get("chat_id")
+    text = payload.get("text", "")
+    char_name = payload.get("char_name", "")
+
+    if not chat_id or not text:
+        logger.warning(f"Proactive job {job.id} missing chat_id or text")
+        return
+
+    success = await _send_telegram(chat_id, text)
+    if success:
+        logger.info(
+            f"[Proactive] {char_name} → chat_id={chat_id}: {text[:60]}..."
+        )
+    else:
+        raise RuntimeError(f"Telegram send failed for chat_id={chat_id}")
+
+
+async def _send_telegram(chat_id: str, text: str) -> bool:
+    """Send a message via the Telegram bot."""
+    try:
+        from channels.telegram.adapter import send_proactive_message
+        return await send_proactive_message(str(chat_id), text)
+    except Exception as e:
+        logger.error(f"_send_telegram error: {e}")
+        return False
+
+
 async def scheduler_loop(interval_seconds: int = 30):
-    """Background loop that checks for due jobs periodically."""
+    """Background loop that checks for due jobs and scans for proactive messages."""
     logger.info(f"Scheduler started (interval: {interval_seconds}s)")
+    # Proactive scanner runs every 5 minutes (not every 30s tick)
+    _proactive_tick = 0
+    _proactive_every = max(1, 300 // interval_seconds)  # ~5 min
+
     while True:
         try:
             await check_due_jobs()
+
+            _proactive_tick += 1
+            if _proactive_tick >= _proactive_every:
+                _proactive_tick = 0
+                try:
+                    from services.proactive_service import schedule_proactive_jobs
+                    count = await schedule_proactive_jobs()
+                    if count:
+                        logger.info(f"[Proactive] Scheduled {count} new proactive job(s)")
+                except Exception as pe:
+                    logger.error(f"Proactive scan error: {pe}")
+
         except Exception as e:
             logger.error(f"Scheduler error: {e}")
         await asyncio.sleep(interval_seconds)

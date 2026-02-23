@@ -12,6 +12,8 @@ import {
   type ChatMessage,
   type ChatImage,
   type Character,
+  type IntimacyUpdate,
+  type StreakUpdate,
 } from "@/lib/api";
 import { useT, useI18n } from "@/contexts/I18nContext";
 
@@ -100,6 +102,23 @@ function renderRoleplayText(text: string): React.ReactNode {
   return <>{parts}</>;
 }
 
+// Intimacy tier definitions (mirror of backend)
+const INTIMACY_TIERS = [
+  { threshold: 0,  name: "陌生",    color: "#888", emoji: "🤝" },
+  { threshold: 20, name: "普通朋友", color: "#60a5fa", emoji: "😊" },
+  { threshold: 40, name: "亲近",    color: "#f472b6", emoji: "💞" },
+  { threshold: 60, name: "暧昧",    color: "#e879f9", emoji: "💕" },
+  { threshold: 80, name: "亲密无间", color: "#f43f5e", emoji: "❤️" },
+];
+
+function getIntimacyTier(level: number) {
+  let tier = INTIMACY_TIERS[0];
+  for (const t of INTIMACY_TIERS) {
+    if (level >= t.threshold) tier = t;
+  }
+  return tier;
+}
+
 export default function ChatInterface({ characterId }: Props) {
   const t = useT();
   const { locale } = useI18n();
@@ -115,6 +134,10 @@ export default function ChatInterface({ characterId }: Props) {
   const [generatingImage, setGeneratingImage] = useState(false);
   const [streamingImages, setStreamingImages] = useState<ChatImage[]>([]);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  const [intimacyLevel, setIntimacyLevel] = useState(0);
+  const [intimacyToast, setIntimacyToast] = useState<IntimacyUpdate | null>(null);
+  const [streakDays, setStreakDays] = useState(0);
+  const [streakToast, setStreakToast] = useState<StreakUpdate | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const streamingTextRef = useRef("");
@@ -136,6 +159,10 @@ export default function ChatInterface({ characterId }: Props) {
     setError(null);
     setGeneratingImage(false);
     setStreamingImages([]);
+    setIntimacyLevel(0);
+    setIntimacyToast(null);
+    setStreakDays(0);
+    setStreakToast(null);
     streamingTextRef.current = "";
 
     async function init() {
@@ -163,6 +190,8 @@ export default function ChatInterface({ characterId }: Props) {
         if (detail.messages.length > 0) {
           setMessages(detail.messages);
         }
+        setIntimacyLevel(detail.intimacy_level ?? 0);
+        setStreakDays(detail.streak_days ?? 0);
       } catch (err) {
         setError(err instanceof Error ? err.message : t.chat.initFailed);
       }
@@ -202,9 +231,6 @@ export default function ChatInterface({ characterId }: Props) {
       },
       () => {
         const finalText = streamingTextRef.current;
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/e6ced9bb-e966-4409-8f50-ec8bd238becf',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'c16f2f'},body:JSON.stringify({sessionId:'c16f2f',location:'ChatInterface.tsx:onDone',message:'on_done_callback',data:{finalTextLen:finalText.length,finalTextEmpty:!finalText.trim(),stripped:stripImgTags(finalText).length,preview:finalText.slice(0,60)},timestamp:Date.now()})}).catch(()=>{});
-        // #endregion
         if (finalText.trim()) {
           const aiMsg: ChatMessage = {
             id: uniqueId(),
@@ -239,6 +265,20 @@ export default function ChatInterface({ characterId }: Props) {
       },
       () => {
         setGeneratingImage(true);
+      },
+      (intimacy) => {
+        setIntimacyLevel(intimacy.level);
+        if (intimacy.tier_unlocked) {
+          setIntimacyToast(intimacy);
+          setTimeout(() => setIntimacyToast(null), 4000);
+        }
+      },
+      (streak) => {
+        setStreakDays(streak.streak_days);
+        if (streak.milestone_toast) {
+          setStreakToast(streak);
+          setTimeout(() => setStreakToast(null), 5000);
+        }
       },
     );
   };
@@ -283,7 +323,7 @@ export default function ChatInterface({ characterId }: Props) {
       <img
         src={character.avatar_url}
         alt={character.name}
-        className="w-8 h-8 rounded-full object-cover flex-shrink-0 ring-1 ring-white/10"
+        className="w-8 h-8 rounded-full object-cover object-top flex-shrink-0 ring-1 ring-white/10"
       />
     ) : (
       <div className={`w-8 h-8 rounded-full bg-gradient-to-br ${getAvatarGradient(character.name)} flex items-center justify-center text-white text-xs font-bold flex-shrink-0`}>
@@ -291,8 +331,59 @@ export default function ChatInterface({ characterId }: Props) {
       </div>
     );
 
+  // Time-based online status indicator
+  const OnlineIndicator = () => {
+    const hour = new Date().getHours();
+    let label: string;
+    let color: string;
+    let dot: string;
+    if (hour >= 0 && hour < 6) {
+      label = "深夜"; color = "#6366f1"; dot = "bg-indigo-400";
+    } else if (hour < 9) {
+      label = "清晨"; color = "#f59e0b"; dot = "bg-amber-400";
+    } else if (hour < 18) {
+      label = "在线"; color = "#22c55e"; dot = "bg-green-400";
+    } else if (hour < 22) {
+      label = "傍晚"; color = "#f97316"; dot = "bg-orange-400";
+    } else {
+      label = "深夜"; color = "#6366f1"; dot = "bg-indigo-400";
+    }
+    return (
+      <div className="flex items-center gap-1 text-[11px]" style={{ color }}>
+        <span className={`w-1.5 h-1.5 rounded-full ${dot} animate-pulse`} />
+        {label}
+      </div>
+    );
+  };
+
+  const intimacyTier = getIntimacyTier(intimacyLevel);
+  const nextTier = INTIMACY_TIERS.find(t => t.threshold > intimacyLevel);
+  const tierRange = nextTier ? nextTier.threshold - intimacyTier.threshold : 20;
+  const progressInTier = intimacyLevel - intimacyTier.threshold;
+  const tierProgress = Math.min(100, Math.round((progressInTier / tierRange) * 100));
+
   return (
     <div className="flex flex-col h-full" style={{ background: "var(--background)" }}>
+
+      {/* ── Intimacy Unlock Toast ── */}
+      {intimacyToast && (
+        <div
+          className="fixed top-4 left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-2xl text-white text-sm font-medium shadow-xl animate-bounce"
+          style={{ background: "linear-gradient(135deg, #e879f9, #f43f5e)" }}
+        >
+          💕 解锁新阶段：{intimacyToast.unlocked_tier_name}！
+        </div>
+      )}
+
+      {/* ── Streak Milestone Toast ── */}
+      {streakToast && (
+        <div
+          className="fixed top-16 left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-2xl text-white text-sm font-medium shadow-xl"
+          style={{ background: "linear-gradient(135deg, #f97316, #ef4444)", animation: "fadeInDown 0.4s ease" }}
+        >
+          {streakToast.milestone_toast}
+        </div>
+      )}
 
       {/* ── Character Header (ClawFans style: centered avatar + name) ── */}
       <div
@@ -303,7 +394,7 @@ export default function ChatInterface({ characterId }: Props) {
           <img
             src={character.avatar_url}
             alt={character.name}
-            className="w-20 h-20 rounded-full object-cover mb-2 ring-2 ring-rose-500/30"
+            className="w-20 h-20 rounded-full object-cover object-top mb-2 ring-2 ring-rose-500/30"
           />
         ) : (
           <div className={`w-20 h-20 rounded-full bg-gradient-to-br ${getAvatarGradient(character.name)} flex items-center justify-center text-white text-2xl font-bold mb-2`}>
@@ -311,9 +402,47 @@ export default function ChatInterface({ characterId }: Props) {
           </div>
         )}
         <h2 className="font-bold text-base">{character.name}</h2>
-        <p className="text-[11px] mt-0.5 max-w-xs text-center px-4" style={{ color: "var(--muted)" }}>
+
+        {/* ── Streak + Online Status Row ── */}
+        <div className="flex items-center gap-3 mt-1">
+          {/* Online/time state indicator */}
+          <OnlineIndicator />
+          {/* Streak counter */}
+          {streakDays >= 1 && (
+            <div className="flex items-center gap-1 text-[11px]" style={{ color: "var(--muted)" }}>
+              <span>{streakDays >= 30 ? "🔥🔥🔥" : streakDays >= 7 ? "🔥🔥" : "🔥"}</span>
+              <span className="font-medium" style={{ color: "#f97316" }}>
+                {streakDays}天连续
+              </span>
+            </div>
+          )}
+        </div>
+
+        <p className="text-[11px] mt-1 max-w-xs text-center px-4" style={{ color: "var(--muted)" }}>
           {t.chat.disclaimer}
         </p>
+
+        {/* ── Intimacy Meter ── */}
+        <div className="mt-3 w-48 flex flex-col items-center gap-1">
+          <div className="flex items-center justify-between w-full text-[10px]" style={{ color: "var(--muted)" }}>
+            <span style={{ color: intimacyTier.color }}>{intimacyTier.emoji} {intimacyTier.name}</span>
+            <span>{intimacyLevel}/100</span>
+          </div>
+          <div className="w-full h-1.5 rounded-full overflow-hidden" style={{ background: "var(--card-border)" }}>
+            <div
+              className="h-full rounded-full transition-all duration-700"
+              style={{
+                width: `${tierProgress}%`,
+                background: `linear-gradient(90deg, ${intimacyTier.color}99, ${intimacyTier.color})`,
+              }}
+            />
+          </div>
+          {nextTier && (
+            <div className="text-[9px]" style={{ color: "var(--muted)" }}>
+              还差 {nextTier.threshold - intimacyLevel} 点解锁「{nextTier.name}」
+            </div>
+          )}
+        </div>
       </div>
 
       {/* ── Memory upsell banner (anonymous users only) ── */}

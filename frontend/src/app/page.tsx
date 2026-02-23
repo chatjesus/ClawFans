@@ -42,7 +42,7 @@ export default function HomePage() {
             {characters.slice(0, 4).map((char) => (
               <div key={char.id} className="w-12 h-12 rounded-full border-2 overflow-hidden flex-shrink-0"
                 style={{ borderColor: "#2e1f26" }}>
-                <img src={char.avatar_url} alt={char.name} className="w-full h-full object-cover" />
+                <img src={char.avatar_url} alt={char.name} className="w-full h-full object-cover object-top" />
               </div>
             ))}
             {/* Skeleton placeholders while characters load */}

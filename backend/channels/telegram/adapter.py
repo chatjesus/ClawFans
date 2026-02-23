@@ -23,6 +23,28 @@ from models.database import SessionLocal
 
 logger = logging.getLogger(__name__)
 
+# Global bot app reference for proactive sending
+_bot_app: "Application | None" = None
+
+
+def get_bot_app():
+    return _bot_app
+
+
+async def send_proactive_message(chat_id: str, text: str) -> bool:
+    """Send a proactive message to a Telegram user. Used by scheduler."""
+    global _bot_app
+    if not _bot_app:
+        logger.warning("Telegram bot not initialized, cannot send proactive message")
+        return False
+    try:
+        await _bot_app.bot.send_message(chat_id=int(chat_id), text=text)
+        logger.info(f"Proactive message sent to chat_id={chat_id}")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to send proactive message to {chat_id}: {e}")
+        return False
+
 
 async def _get_db():
     db = SessionLocal()
@@ -144,6 +166,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         # Determine character_id from active session or default
         from models.database import ChatSession
+        from services.proactive_service import mark_user_active
+
+        # Get the chat_id (for DMs, same as user_id)
+        chat_id = str(update.effective_chat.id)
+
         session = (
             db.query(ChatSession)
             .filter(
@@ -155,6 +182,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             .first()
         )
         character_id = session.character_id if session else TELEGRAM_CONFIG["default_character_id"]
+
+        # Save chat_id and reset inactivity timer
+        if session:
+            if not session.telegram_chat_id:
+                session.telegram_chat_id = chat_id
+                db.commit()
+            mark_user_active(user_id, character_id, db)
 
         event = InboundEvent(
             platform=Platform.TELEGRAM,
@@ -218,6 +252,7 @@ def create_telegram_app() -> Application | None:
 
 async def start_telegram_polling():
     """Start the Telegram bot in polling mode (for development)."""
+    global _bot_app
     app = create_telegram_app()
     if not app:
         return
@@ -233,6 +268,7 @@ async def start_telegram_polling():
     await app.initialize()
     await app.bot.set_my_commands(commands)
     await app.start()
+    _bot_app = app  # expose for proactive sending
     logger.info("Telegram bot started (polling mode)")
     await app.updater.start_polling(drop_pending_updates=True)
     return app

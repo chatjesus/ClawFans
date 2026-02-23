@@ -90,6 +90,8 @@ class ConversationResponse(BaseModel):
     title: str
     character_name: str = ""
     character_avatar: str = ""
+    intimacy_level: int = 0
+    streak_days: int = 0
     created_at: datetime
     updated_at: datetime
 
@@ -103,6 +105,8 @@ class ConversationDetail(BaseModel):
     character_avatar: str = ""
     title: str
     messages: list[ChatMessageResponse] = []
+    intimacy_level: int = 0
+    streak_days: int = 0
     created_at: datetime
     updated_at: datetime
 

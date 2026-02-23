@@ -72,7 +72,7 @@ function ChatAvatar({ conv, size = 28, active }: { conv: Conversation; size?: nu
     >
       {conv.character_avatar ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={conv.character_avatar} alt={name} className="w-full h-full object-cover" />
+        <img src={conv.character_avatar} alt={name} className="w-full h-full object-cover object-top" />
       ) : (
         <div className={`w-full h-full bg-gradient-to-br ${avatarGradient(name)} flex items-center justify-center text-white font-bold`}
           style={{ fontSize: size * 0.42 }}

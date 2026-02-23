@@ -13,7 +13,7 @@ async def chat_completion_stream(
     messages: list[dict],
     model: str = DEFAULT_MODEL,
     temperature: float = 0.95,
-    max_tokens: int = 2048,
+    max_tokens: int = 400,
 ) -> AsyncGenerator[str, None]:
     """
     Stream chat completion from Ollama.
@@ -26,7 +26,7 @@ async def chat_completion_stream(
         "options": {
             "temperature": temperature,
             "num_predict": max_tokens,
-            "num_ctx": 8192,
+            "num_ctx": 4096,
         },
     }
 
@@ -90,7 +90,7 @@ async def chat_completion(
     messages: list[dict],
     model: str = DEFAULT_MODEL,
     temperature: float = 0.85,
-    max_tokens: int = 2048,
+    max_tokens: int = 400,
 ) -> str:
     """
     Non-streaming chat completion. Returns full response text.
@@ -102,7 +102,7 @@ async def chat_completion(
         "options": {
             "temperature": temperature,
             "num_predict": max_tokens,
-            "num_ctx": 8192,
+            "num_ctx": 4096,
         },
     }
 

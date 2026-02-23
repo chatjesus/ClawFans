@@ -4,6 +4,91 @@ All notable changes to the ClawFans project are documented here.
 
 ---
 
+## [0.9.0] - 2026-02-22 — Intimacy System Phase 0 (Foundation)
+
+### Added
+- **`services/intimacy_service.py`**: Core intimacy logic engine
+  - `IntimacyTier` model with 5 tiers (陌生人 / 好感 / 暧昧 / 亲密 / 挚爱) at thresholds 0/20/40/60/80
+  - `calc_intimacy_gain()`: regex-based keyword scoring across affection, physical, and negative patterns
+  - `build_intimacy_prompt()`: injects current stage, ASCII progress bar, and photo rules into system prompt
+  - `augment_image_prompt()`: appends tier-appropriate SDXL tags to in-chat image generation prompts
+  - `get_tier()` / `get_next_tier()`: tier lookup helpers
+- **`Conversation.intimacy_level`**: New integer column (0–100) persisted to `synclub.db`
+- **Frontend Intimacy Meter** in `ChatInterface.tsx`
+  - Tier badge with color coding and emoji
+  - Animated progress bar transitioning between tiers
+  - "还差 N 点解锁「X」" next-tier hint
+  - Toast notification on tier unlock (fixed-position, auto-dismiss)
+- **SSE `intimacy` event**: After each AI reply, backend streams `{ level, gained, tier, tier_unlocked, next_threshold }` to frontend
+- **`IntimacyUpdate` TypeScript interface** in `lib/api.ts` with `onIntimacy` callback in `sendMessageStream`
+- **Image escalation by tier**:
+  - Tier 0-1: SFW lifestyle shots (咖啡馆, 书桌, 日常穿搭)
+  - Tier 2: Flirty composition (low-cut, short skirt, midriff hint)
+  - Tier 3+: Ecchi fanservice (cleavage, thighs, seductive pose)
+  - NSFW flag enabled only at intimacy ≥ 40
+
+### Changed
+- `chat_service.py`: `build_messages()` injects `build_intimacy_prompt(level)` into system content
+- `chat_service.py`: `generate_reply_stream()` calculates intimacy gain after each turn, detects tier change
+- `chat_service.py`: `process_reply_images()` accepts `intimacy_level`, uses `augment_image_prompt()` per description
+- `api/chat.py`: `get_conversation()` and `list_conversations()` return `intimacy_level`
+- `api/chat.py`: `event_stream()` yields `intimacy` SSE event after image processing
+- `models/schemas.py`: `ConversationResponse` and `ConversationDetail` include `intimacy_level: int = 0`
+- `lib/api.ts`: `ConversationDetail` interface includes `intimacy_level`
+
+### Fixed
+- `DATABASE_URL` corrected from `clawfans.db` → `synclub.db` across all scripts and the ORM engine
+
+---
+
+## [0.8.0] - 2026-02-22 — Character Expansion & Engagement Enhancement
+
+### Added
+- **56 new characters** generated with "活人感" (real-person feel) design principles
+  - Each character has: unique backstory, 5-sense physical description, 反差萌 personality contrast, 钩子 (hook) opening
+  - NSFW characters include `【成人互动指引】` section with body language and intimacy triggers
+  - Dynamic model selection: `huihui_ai/qwen2.5-abliterate:14b` for NSFW, `qwen2.5:14b` for SFW
+- **Hooks & Heartbeat system prompt architecture** (`HOOKS_HEARTBEAT_DESIGN.md`)
+  - Implicit guidance replaces explicit step labels in POST_HISTORY_INSTRUCTION
+  - Forbidden meta-text output (`MEMORY CALLBACK:`, `EMOTIONAL CRACK:`, `OPEN THREAD:` labels)
+  - Suspense hook ending every greeting for re-engagement
+- **`scripts/create_50_chars.py`**: Batch character creation with scene planning and dual-model selection
+- **`scripts/regen_nsfw_cards.py`**: Patch script to regenerate system prompts and greetings for existing characters
+- **`scripts/regen_images.py`**: Full rewrite with dual-provider support
+  - Auto-detect ComfyUI (preferred) vs Gemini (fallback)
+  - Separate SDXL vs Gemini prompt templates (`_SDXL` / `_GEMINI` variants)
+  - English-only Danbooru tag enforcement for SDXL (with Chinese→English examples)
+  - Portrait resolution fixed at 832×1216, v-pred CFG adjustments for NoobAI XL
+  - Timestamp-based avatar filenames (e.g., `char_53_1771817555.png`) for browser cache-busting
+  - `--force-nsfw` flag to override NSFW detection
+- **Ecchi/fanservice NSFW style** (suggestive, not explicit):
+  - Tags: `large breasts, cleavage, low-cut dress, exposed midriff, thighs, short skirt, alluring pose`
+  - Explicitly bans: `nude, topless, explicit` — replaced with figure-appeal composition
+- **`scripts/dedup_chars.py`**: Removes 111 duplicate character entries from repeated script runs
+- **`scripts/fix_old_char_weights.py`**: Restores `sort_weight=50` for legacy characters (IDs 1–44)
+- **`scripts/fix_open_thread.py`**: Strips `OPEN THREAD:` labels from 22 existing greeting messages in DB
+
+### Changed
+- `backend/api/characters.py`: `list_characters` limit raised from 50 → 300
+- `frontend/src/lib/api.ts`: `fetchCharacters` explicitly passes `limit=300`
+- `frontend/.env.local`: Added `NEXT_PUBLIC_API_URL=http://localhost:8000`
+- All avatar `<img>` tags: Added `object-top` CSS class for face-priority cropping of portrait images
+- `ChatInterface.tsx`: Removed hardcoded `<span>Intro.</span>` prefix from greeting display
+- `llm_service.py`: `DEFAULT_MODEL` updated from `qwen2.5:7b` → `qwen2.5:14b`
+- All scripts: UTF-8 output encoding hardened for Windows terminal (`PYTHONIOENCODING`, `SetConsoleOutputCP`)
+
+### Fixed
+- AI responses leaking internal labels (`MEMORY CALLBACK:`, `EMOTIONAL CRACK:`) — fixed via implicit prompt rewrite
+- Greeting prefix `Intro.` visible in frontend — removed hardcoded span
+- `upgrade_greetings.py` coroutine errors — made functions `async`, added `asyncio.run()`
+- `regen_images.py` `KeyError: 'character appearance'` — corrected format string literal
+- Frontend "连接错误" — added missing `NEXT_PUBLIC_API_URL` env var
+- Old characters invisible — restored `sort_weight` via `fix_old_char_weights.py`
+- Avatar browser caching — timestamp-based filenames + old file cleanup on regen
+- Two conflicting `uvicorn` processes on port 8000 — identified and terminated duplicate
+
+---
+
 ## [0.7.0] - 2026-02-22 — Character Consistency & Scene Pre-generation
 
 ### Added

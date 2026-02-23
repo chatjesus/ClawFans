@@ -100,6 +100,11 @@ class Conversation(Base):
     clerk_user_id = Column(String(200), nullable=True, index=True)
     character_id = Column(Integer, ForeignKey("characters.id"), nullable=False)
     title = Column(String(200), default="New Chat")
+    # Intimacy level (0-100): controls how revealing character's photos can be
+    intimacy_level = Column(Integer, default=0)
+    # Streak tracking: consecutive days with at least one message
+    streak_days = Column(Integer, default=0)
+    last_chat_date = Column(String(10), nullable=True)   # ISO date "2026-02-22"
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -141,9 +146,13 @@ class ChatSession(Base):
     id = Column(Integer, primary_key=True, index=True)
     platform = Column(String(30), nullable=False, index=True)
     platform_user_id = Column(String(200), nullable=False, index=True)
+    # For Telegram: the chat_id used to send proactive messages (same as platform_user_id for DMs)
+    telegram_chat_id = Column(String(200), nullable=True)
     character_id = Column(Integer, ForeignKey("characters.id"), nullable=False)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     status = Column(String(20), default="active")
+    # Proactive message tracking: last time we sent one (to avoid spam)
+    last_proactive_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     last_active_at = Column(DateTime, default=datetime.utcnow)
 

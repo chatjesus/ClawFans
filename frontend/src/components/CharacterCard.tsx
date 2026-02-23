@@ -42,7 +42,7 @@ export default function CharacterCard({ character }: Props) {
             <img
               src={character.avatar_url}
               alt={character.name}
-              className="w-full h-full object-cover"
+              className="w-full h-full object-cover object-top"
             />
           ) : (
             <div className={`w-full h-full bg-gradient-to-br ${getAvatarGradient(character.name)} flex items-center justify-center`}>

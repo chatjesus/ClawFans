@@ -85,6 +85,8 @@ export interface ConversationDetail {
   character_avatar: string;
   title: string;
   messages: ChatMessage[];
+  intimacy_level: number;
+  streak_days: number;
   created_at: string;
   updated_at: string;
 }
@@ -202,10 +204,28 @@ export async function deleteAllConversationsForCharacter(
   }
 }
 
+export interface IntimacyUpdate {
+  level: number;
+  gained: number;
+  tier: string;
+  tier_en: string;
+  tier_unlocked: boolean;
+  unlocked_tier_name: string | null;
+  next_threshold: number;
+}
+
+export interface StreakUpdate {
+  streak_days: number;
+  broken: boolean;
+  milestone_toast: string | null;
+  intimacy_bonus: number;
+}
+
 /**
  * Send a message and stream the AI response via SSE.
  * Calls onChunk for each text chunk, onDone when complete.
  * Optional: onImage for inline image generation, onGeneratingImage when image gen starts.
+ * Optional: onIntimacy for intimacy level updates.
  */
 export async function sendMessageStream(
   conversationId: number,
@@ -217,13 +237,12 @@ export async function sendMessageStream(
   token?: string | null,
   onImage?: (image: ChatImage) => void,
   onGeneratingImage?: () => void,
+  onIntimacy?: (update: IntimacyUpdate) => void,
+  onStreak?: (update: StreakUpdate) => void,
 ): Promise<void> {
   try {
     const params = new URLSearchParams();
     if (locale && locale !== "zh") params.set("locale", locale);
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/e6ced9bb-e966-4409-8f50-ec8bd238becf',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'c16f2f'},body:JSON.stringify({sessionId:'c16f2f',location:'api.ts:sendMessageStream',message:'send_start',data:{conversationId,content_preview:content.slice(0,30)},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     const res = await fetch(
       `${API_BASE}/api/chat/conversations/${conversationId}/messages?${params}`,
       {
@@ -234,9 +253,6 @@ export async function sendMessageStream(
     );
 
     if (!res.ok) {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/e6ced9bb-e966-4409-8f50-ec8bd238becf',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'c16f2f'},body:JSON.stringify({sessionId:'c16f2f',location:'api.ts:res_not_ok',message:'http_error',data:{status:res.status,conversationId},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
       onError("Failed to send message");
       return;
     }
@@ -264,29 +280,13 @@ export async function sendMessageStream(
         const jsonStr = trimmed.slice(6);
         try {
           const data = JSON.parse(jsonStr);
-          if (data.content) {
-            onChunk(data.content);
-          }
-          if (data.generating_image) {
-            onGeneratingImage?.();
-          }
-          if (data.image) {
-            onImage?.(data.image as ChatImage);
-          }
-          if (data.done) {
-            // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/e6ced9bb-e966-4409-8f50-ec8bd238becf',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'c16f2f'},body:JSON.stringify({sessionId:'c16f2f',location:'api.ts:done_event',message:'sse_done',data:{conversationId,chunksReceived:buffer.length},timestamp:Date.now()})}).catch(()=>{});
-            // #endregion
-            onDone();
-            return;
-          }
-          if (data.error) {
-            // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/e6ced9bb-e966-4409-8f50-ec8bd238becf',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'c16f2f'},body:JSON.stringify({sessionId:'c16f2f',location:'api.ts:error_event',message:'sse_error',data:{conversationId,error:data.error},timestamp:Date.now()})}).catch(()=>{});
-            // #endregion
-            onError(data.error);
-            return;
-          }
+          if (data.content) onChunk(data.content);
+          if (data.generating_image) onGeneratingImage?.();
+          if (data.image) onImage?.(data.image as ChatImage);
+          if (data.intimacy) onIntimacy?.(data.intimacy as IntimacyUpdate);
+          if (data.streak) onStreak?.(data.streak as StreakUpdate);
+          if (data.done) { onDone(); return; }
+          if (data.error) { onError(data.error); return; }
         } catch {
           // skip malformed JSON
         }
