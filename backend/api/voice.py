@@ -41,7 +41,7 @@ async def synthesize(req: TTSRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=f"TTS error: {e}")
 
     if not audio_bytes:
-        raise HTTPException(status_code=500, detail="TTS synthesis returned empty")
+        raise HTTPException(status_code=503, detail="voice engine unavailable")
 
     return Response(
         content=audio_bytes,
@@ -73,7 +73,7 @@ async def message_tts(message_id: int, db: Session = Depends(get_db)):
         description=char.description or "",
     )
     if not audio_bytes:
-        raise HTTPException(status_code=500, detail="TTS synthesis failed")
+        raise HTTPException(status_code=503, detail="voice engine unavailable")
 
     return Response(
         content=audio_bytes,

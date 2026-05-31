@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
+import dynamic from "next/dynamic";
 import { useAuth, SignInButton } from "@clerk/nextjs";
 import {
   sendMessageStream,
@@ -19,6 +20,9 @@ import {
 } from "@/lib/api";
 import { useT, useI18n } from "@/contexts/I18nContext";
 import { AudioPlayer } from "@/components/AudioPlayer";
+
+// Lazy-load the story event modal; it's only rendered when an event triggers.
+const EventModal = dynamic(() => import("@/components/EventModal"), { ssr: false });
 
 interface Props {
   characterId: number;
@@ -411,11 +415,6 @@ export default function ChatInterface({ characterId }: Props) {
   const tierRange = nextTier ? nextTier.threshold - intimacyTier.threshold : 20;
   const progressInTier = intimacyLevel - intimacyTier.threshold;
   const tierProgress = Math.min(100, Math.round((progressInTier / tierRange) * 100));
-
-  // ── Event Modal lazy import ──
-  const EventModal = storyEvent
-    ? require("@/components/EventModal").default
-    : null;
 
   return (
     <div className="flex flex-col h-full" style={{ background: "var(--background)" }}>

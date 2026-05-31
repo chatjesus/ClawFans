@@ -25,6 +25,9 @@ aiofiles==24.1.0
 # ── Telegram Bot ─────────────────────────────────────────────────────────────
 python-telegram-bot==21.10
 
+# ── Text-to-Speech (edge-tts fallback used by services/tts_service.py) ────────
+edge-tts==7.0.2
+
 # ── Cloudflare R2 (S3-compatible image storage) ───────────────────────────────
 boto3==1.36.0
 

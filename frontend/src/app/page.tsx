@@ -25,10 +25,20 @@ export default function HomePage() {
   useEffect(() => { fetchCategories().then(setCategories).catch(() => {}); }, []);
 
   useEffect(() => {
-    setLoading(true); setError(null);
-    fetchCharacters(activeCategory, searchQuery, locale)
-      .then((data) => { setCharacters(data); setLoading(false); })
-      .catch((err) => { setError(err.message); setLoading(false); });
+    let cancelled = false;
+    // Run the fetch in an async flow so state updates happen in callbacks,
+    // not synchronously in the effect body (avoids cascading renders).
+    (async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const data = await fetchCharacters(activeCategory, searchQuery, locale);
+        if (!cancelled) { setCharacters(data); setLoading(false); }
+      } catch (err) {
+        if (!cancelled) { setError((err as Error).message); setLoading(false); }
+      }
+    })();
+    return () => { cancelled = true; };
   }, [activeCategory, searchQuery, locale]);
 
   return (

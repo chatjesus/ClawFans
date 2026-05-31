@@ -550,9 +550,6 @@ app.include_router(events_router)
 from api.voice import router as voice_router
 app.include_router(voice_router)
 
-from api.tts import router as tts_router
-app.include_router(tts_router)
-
 
 @app.get("/api/health")
 async def health_check():

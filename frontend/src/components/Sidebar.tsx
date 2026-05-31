@@ -408,7 +408,7 @@ export default function Sidebar() {
               style={health?.ollama === "connected" ? { boxShadow: "0 0 4px rgba(34,197,94,0.5)" } : undefined}
             />
             <span className="text-[10px] truncate" style={{ color: "var(--muted)" }}>
-              {health?.models?.[0] ?? (health?.ollama === "connected" ? t.sidebar.online : t.sidebar.offline)}
+              {health?.ollama === "connected" ? t.sidebar.online : t.sidebar.offline}
             </span>
           </div>
         ) : (

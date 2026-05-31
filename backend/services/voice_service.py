@@ -15,10 +15,7 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-GCP_CREDENTIALS = os.getenv(
-    "GOOGLE_APPLICATION_CREDENTIALS",
-    r"C:\Users\PRO\Desktop\CUDA\credentials\pdfconverter-415414-d9dbb1a4eec6.json",
-)
+GCP_CREDENTIALS = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "")
 
 VOICE_DIR = Path(__file__).parent.parent / "uploads" / "voice"
 VOICE_DIR.mkdir(parents=True, exist_ok=True)
