@@ -241,29 +241,28 @@ export default function ChatInterface({ characterId }: Props) {
       },
       () => {
         const finalText = streamingTextRef.current;
-        if (finalText.trim()) {
+        const hasImages = collectedImages.length > 0;
+        if (finalText.trim() || hasImages) {
           const aiMsg: ChatMessage = {
             id: uniqueId(),
             role: "assistant",
             content: stripImgTags(finalText),
-            images: collectedImages.length > 0 ? [...collectedImages] : undefined,
+            images: hasImages ? [...collectedImages] : undefined,
             created_at: new Date().toISOString(),
           };
           lastAiMsgIdRef.current = aiMsg.id;
           setMessages((prev) => [...prev, aiMsg]);
+        } else {
+          // Model produced nothing (e.g. reasoning consumed the token budget,
+          // or a transient model error). Never fail silently — tell the user.
+          setError("角色这次没有回复，请重试。(No reply — please try again.)");
         }
         streamingTextRef.current = "";
         setStreamingText("");
         setStreamingImages([]);
         setGeneratingImage(false);
         setIsStreaming(false);
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/e6ced9bb-e966-4409-8f50-ec8bd238becf',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'efdaab'},body:JSON.stringify({sessionId:'efdaab',location:'ChatInterface.tsx:onDone',message:'focus() called',data:{isDisabled:inputRef.current?.disabled,activeEl:document.activeElement?.tagName,inputExists:!!inputRef.current},timestamp:Date.now(),hypothesisId:'A'})}).catch(()=>{});
-        // #endregion
         inputRef.current?.focus();
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/e6ced9bb-e966-4409-8f50-ec8bd238becf',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'efdaab'},body:JSON.stringify({sessionId:'efdaab',location:'ChatInterface.tsx:onDone:afterFocus',message:'after focus()',data:{activeEl:document.activeElement?.tagName,activeId:document.activeElement?.id,isInput:document.activeElement===inputRef.current},timestamp:Date.now(),hypothesisId:'A,B'})}).catch(()=>{});
-        // #endregion
       },
       (errMsg) => {
         setError(errMsg);

@@ -32,11 +32,21 @@ def _num_ctx() -> int:
         return 8192
 
 
+def _max_tokens() -> int:
+    """Default reply length (num_predict). 800, not 400 — reasoning models
+    (e.g. qwen3) spend part of the budget on hidden thinking, and 400 left some
+    replies empty. Tune via OLLAMA_MAX_TOKENS."""
+    try:
+        return int(os.environ.get("OLLAMA_MAX_TOKENS", "800"))
+    except ValueError:
+        return 800
+
+
 async def chat_completion_stream(
     messages: list[dict],
     model: str | None = None,
     temperature: float = 0.95,
-    max_tokens: int = 400,
+    max_tokens: int | None = None,
 ) -> AsyncGenerator[str, None]:
     """Stream chat completion from Ollama. Yields text chunks as they arrive."""
     model = model or get_default_model()
@@ -46,7 +56,7 @@ async def chat_completion_stream(
         "stream": True,
         "options": {
             "temperature": temperature,
-            "num_predict": max_tokens,
+            "num_predict": max_tokens if max_tokens is not None else _max_tokens(),
             "num_ctx": _num_ctx(),
         },
     }
@@ -71,6 +81,11 @@ async def chat_completion_stream(
                         data = json.loads(line)
                     except json.JSONDecodeError:
                         continue
+                    # Ollama can answer 200 OK with an in-band error (model needs a
+                    # subscription, not pulled, etc.). Surface it instead of ending
+                    # the stream silently with no content.
+                    if isinstance(data, dict) and data.get("error"):
+                        raise RuntimeError(f"Ollama error: {data['error']}")
                     if "message" in data and "content" in data["message"]:
                         chunk = data["message"]["content"]
                         if chunk:
@@ -87,7 +102,7 @@ async def chat_completion(
     messages: list[dict],
     model: str | None = None,
     temperature: float = 0.85,
-    max_tokens: int = 400,
+    max_tokens: int | None = None,
 ) -> str:
     """Non-streaming chat completion. Returns full response text."""
     model = model or get_default_model()
@@ -97,7 +112,7 @@ async def chat_completion(
         "stream": False,
         "options": {
             "temperature": temperature,
-            "num_predict": max_tokens,
+            "num_predict": max_tokens if max_tokens is not None else _max_tokens(),
             "num_ctx": _num_ctx(),
         },
     }
