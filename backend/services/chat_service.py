@@ -186,26 +186,33 @@ def build_messages(
     db: Session,
     user_id: str = "anonymous",
     streak_info: dict | None = None,
+    client_hour: int | None = None,
+    system_prompt_override: str | None = None,
 ) -> list[dict]:
     """
     Build the full message list for the LLM:
       1. System: global rules + narrative framework + character card
       2. Conversation history (or greeting)
       3. System: post-history reinforcement
+
+    ``system_prompt_override`` lets the caller substitute a request-scoped
+    prompt (e.g. with locale overlay + language directive) without mutating
+    the ORM Character — see api/chat.py.
     """
     char_name = character.name
+    base_prompt = system_prompt_override if system_prompt_override is not None else character.system_prompt
 
     # Layer 1 + Layer 2 combined into the system message
     system_content = replace_macros(SYSTEM_PROMPT, char_name)
     system_content += f"## Character Card: {char_name}\n"
-    system_content += replace_macros(character.system_prompt, char_name)
+    system_content += replace_macros(base_prompt, char_name)
 
     # Inject intimacy context (relationship stage + photo rules)
     intimacy_level = getattr(conversation, "intimacy_level", 0) or 0
     system_content += build_intimacy_prompt(intimacy_level)
 
     # Inject time-based character schedule state (morning/evening/night mood)
-    system_content += build_schedule_prompt()
+    system_content += build_schedule_prompt(client_hour=client_hour)
 
     # Inject available tools so character can take real actions
     try:
@@ -315,6 +322,8 @@ async def generate_reply_stream(
     db: Session,
     user_id: str = "anonymous",
     result_holder: StreamResult | None = None,
+    client_hour: int | None = None,
+    system_prompt_override: str | None = None,
 ) -> AsyncGenerator[str, None]:
     """
     1. Persist user message
@@ -324,6 +333,14 @@ async def generate_reply_stream(
     5. Background memory extraction
     6. Store full_reply + intimacy_update in result_holder for post-processing
     """
+    # FastAPI tears down the Depends(get_db) session as soon as the request
+    # handler returns the StreamingResponse, so the `character` and
+    # `conversation` instances passed in are now detached from this session.
+    # Re-fetch them so mutations made below (message_count, intimacy_level,
+    # streak_days, …) actually reach the database.
+    character = db.query(Character).filter(Character.id == character.id).first()
+    conversation = db.query(Conversation).filter(Conversation.id == conversation.id).first()
+
     user_msg = Message(
         conversation_id=conversation.id,
         role="user",
@@ -337,29 +354,41 @@ async def generate_reply_stream(
     if result_holder is not None and streak_info.get("is_new_day"):
         result_holder.streak_update = streak_info
 
-    context = build_messages(character, conversation, db, user_id=user_id, streak_info=streak_info)
+    context = build_messages(
+        character, conversation, db,
+        user_id=user_id, streak_info=streak_info, client_hour=client_hour,
+        system_prompt_override=system_prompt_override,
+    )
 
     full_reply = ""
-    async for chunk in chat_completion_stream(context):
-        full_reply += chunk
-        yield chunk
+    finalized = False
 
-    # Detect tool call in the response — strip the block from display text
-    tool_call_match = _TOOL_CALL_RE.search(full_reply)
-    if tool_call_match and result_holder is not None:
-        try:
-            import json as _json
-            tool_data = _json.loads(tool_call_match.group(1))
-            result_holder.tool_call = tool_data
-        except Exception:
-            pass
-    # Remove tool block from the stored reply (users shouldn't see raw JSON)
-    display_reply = _TOOL_CALL_RE.sub("", full_reply).strip()
+    def _finalize() -> None:
+        """Persist the assistant reply and update stats. Idempotent — runs on
+        normal completion AND on early consumer disconnect (GeneratorExit),
+        so a reply the model already produced is never lost."""
+        nonlocal finalized
+        if finalized:
+            return
+        finalized = True
 
-    if result_holder is not None:
-        result_holder.full_reply = display_reply
+        # Detect tool call in the response — strip the block from display text
+        tool_call_match = _TOOL_CALL_RE.search(full_reply)
+        if tool_call_match and result_holder is not None:
+            try:
+                import json as _json
+                result_holder.tool_call = _json.loads(tool_call_match.group(1))
+            except Exception:
+                pass
+        # Remove tool block from the stored reply (users shouldn't see raw JSON)
+        display_reply = _TOOL_CALL_RE.sub("", full_reply).strip()
 
-    if display_reply.strip():
+        if result_holder is not None:
+            result_holder.full_reply = display_reply
+
+        if not display_reply.strip():
+            return
+
         assistant_msg = Message(
             conversation_id=conversation.id,
             role="assistant",
@@ -398,6 +427,14 @@ async def generate_reply_stream(
             _asyncio.create_task(
                 _extract_web_memories(user_id, character.id, user_message, full_reply)
             )
+
+    try:
+        async for chunk in chat_completion_stream(context):
+            full_reply += chunk
+            yield chunk
+    finally:
+        # Covers clean completion and GeneratorExit (client disconnect).
+        _finalize()
 
 
 async def process_reply_images(

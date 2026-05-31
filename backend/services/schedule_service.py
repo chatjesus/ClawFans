@@ -132,15 +132,25 @@ def get_current_slot() -> dict:
     return _SLOTS[0]  # fallback: late_night
 
 
-def build_schedule_prompt() -> str:
+def build_schedule_prompt(client_hour: int | None = None) -> str:
     """
     Build the time-state section of the system prompt.
+    If client_hour is provided (0-23), use that instead of server time.
     Injected into every chat turn so the LLM knows what 'time' it is in-world.
     """
-    slot = get_current_slot()
-    now_str = _now_cst().strftime("%H:%M")
+    if client_hour is not None:
+        hour = client_hour
+        slot = next(
+            (s for s in _SLOTS if hour in s["hours"]),
+            _SLOTS[0],
+        )
+        now_str = f"{hour:02d}:xx"
+    else:
+        slot = get_current_slot()
+        now_str = _now_cst().strftime("%H:%M")
+
     return (
-        f"\n\n## 当前时段 {slot['emoji']} {slot['name']}（{now_str} CST）\n"
+        f"\n\n## 当前时段 {slot['emoji']} {slot['name']}（{now_str}）\n"
         f"{slot['mood']}\n"
         "（这只是背景氛围提示，不要在回复中明确说出时间，让状态自然流露。）"
     )

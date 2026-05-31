@@ -18,6 +18,7 @@ import {
   type ToolResult,
 } from "@/lib/api";
 import { useT, useI18n } from "@/contexts/I18nContext";
+import { AudioPlayer } from "@/components/AudioPlayer";
 
 interface Props {
   characterId: number;
@@ -142,6 +143,9 @@ export default function ChatInterface({ characterId }: Props) {
   const [streakToast, setStreakToast] = useState<StreakUpdate | null>(null);
   const [toolExecuting, setToolExecuting] = useState<ToolExecuting | null>(null);
   const [toolResult, setToolResult] = useState<ToolResult | null>(null);
+  const [storyEvent, setStoryEvent] = useState<import("@/components/EventModal").StoryEventData | null>(null);
+  const [ttsEnabled, setTtsEnabled] = useState(false);
+  const lastAiMsgIdRef = useRef<number | undefined>(undefined);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const streamingTextRef = useRef("");
@@ -245,6 +249,7 @@ export default function ChatInterface({ characterId }: Props) {
             images: collectedImages.length > 0 ? [...collectedImages] : undefined,
             created_at: new Date().toISOString(),
           };
+          lastAiMsgIdRef.current = aiMsg.id;
           setMessages((prev) => [...prev, aiMsg]);
         }
         streamingTextRef.current = "";
@@ -252,7 +257,13 @@ export default function ChatInterface({ characterId }: Props) {
         setStreamingImages([]);
         setGeneratingImage(false);
         setIsStreaming(false);
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/e6ced9bb-e966-4409-8f50-ec8bd238becf',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'efdaab'},body:JSON.stringify({sessionId:'efdaab',location:'ChatInterface.tsx:onDone',message:'focus() called',data:{isDisabled:inputRef.current?.disabled,activeEl:document.activeElement?.tagName,inputExists:!!inputRef.current},timestamp:Date.now(),hypothesisId:'A'})}).catch(()=>{});
+        // #endregion
         inputRef.current?.focus();
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/e6ced9bb-e966-4409-8f50-ec8bd238becf',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'efdaab'},body:JSON.stringify({sessionId:'efdaab',location:'ChatInterface.tsx:onDone:afterFocus',message:'after focus()',data:{activeEl:document.activeElement?.tagName,activeId:document.activeElement?.id,isInput:document.activeElement===inputRef.current},timestamp:Date.now(),hypothesisId:'A,B'})}).catch(()=>{});
+        // #endregion
       },
       (errMsg) => {
         setError(errMsg);
@@ -307,6 +318,18 @@ export default function ChatInterface({ characterId }: Props) {
           }
           return last;
         });
+      },
+      (eventData) => {
+        // Story event triggered — show modal
+        setStoryEvent(eventData as import("@/components/EventModal").StoryEventData);
+      },
+      (voiceUrl) => {
+        // Auto-play voice from SSE if TTS is enabled
+        if (ttsEnabled && voiceUrl) {
+          const fullUrl = voiceUrl.startsWith("http") ? voiceUrl : `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}${voiceUrl}`;
+          const audio = new Audio(fullUrl);
+          audio.play().catch(() => {});
+        }
       },
     );
   };
@@ -390,8 +413,37 @@ export default function ChatInterface({ characterId }: Props) {
   const progressInTier = intimacyLevel - intimacyTier.threshold;
   const tierProgress = Math.min(100, Math.round((progressInTier / tierRange) * 100));
 
+  // ── Event Modal lazy import ──
+  const EventModal = storyEvent
+    ? require("@/components/EventModal").default
+    : null;
+
   return (
     <div className="flex flex-col h-full" style={{ background: "var(--background)" }}>
+
+      {/* ── Story Event Modal ── */}
+      {storyEvent && EventModal && (
+        <EventModal
+          event={storyEvent}
+          conversationId={conversationId!}
+          characterName={character.name}
+          characterAvatar={character.avatar_url ? resolveImageUrl(character.avatar_url) : undefined}
+          onResolved={(reaction: string, delta: number, newLevel: number) => {
+            setIntimacyLevel(newLevel);
+            // Inject character's reaction as a new message
+            if (reaction) {
+              const reactionMsg: ChatMessage = {
+                id: uniqueId(),
+                role: "assistant",
+                content: reaction,
+                created_at: new Date().toISOString(),
+              };
+              setMessages((prev) => [...prev, reactionMsg]);
+            }
+          }}
+          onDismiss={() => setStoryEvent(null)}
+        />
+      )}
 
       {/* ── Intimacy Unlock Toast ── */}
       {intimacyToast && (
@@ -431,7 +483,7 @@ export default function ChatInterface({ characterId }: Props) {
         )}
         <h2 className="font-bold text-base">{character.name}</h2>
 
-        {/* ── Streak + Online Status Row ── */}
+        {/* ── Streak + Online Status + TTS Toggle Row ── */}
         <div className="flex items-center gap-3 mt-1">
           {/* Online/time state indicator */}
           <OnlineIndicator />
@@ -444,6 +496,21 @@ export default function ChatInterface({ characterId }: Props) {
               </span>
             </div>
           )}
+          {/* TTS auto-play toggle */}
+          <button
+            onClick={() => setTtsEnabled((v) => !v)}
+            title={ttsEnabled ? "关闭自动朗读" : "开启自动朗读（新消息自动播放）"}
+            className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] transition-all border ${
+              ttsEnabled
+                ? "border-rose-400/40 bg-rose-500/15 text-rose-400"
+                : "border-transparent text-gray-400 hover:text-rose-400 hover:border-rose-400/30"
+            }`}
+          >
+            <svg viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3">
+              <path d="M10 3.75a.75.75 0 0 0-1.264-.546L4.703 7H3.167a.75.75 0 0 0-.75.75v4.5c0 .414.336.75.75.75h1.536l4.033 3.796A.75.75 0 0 0 10 16.25V3.75ZM15.95 5.05a.75.75 0 1 0-1.06 1.061 5.5 5.5 0 0 1 0 7.778.75.75 0 1 0 1.06 1.06 7 7 0 0 0 0-9.899ZM13.829 7.172a.75.75 0 1 0-1.061 1.06 2.5 2.5 0 0 1 0 3.536.75.75 0 1 0 1.06 1.06 4 4 0 0 0 0-5.656Z" />
+            </svg>
+            {ttsEnabled ? "自动朗读 ●" : "自动朗读"}
+          </button>
         </div>
 
         <p className="text-[11px] mt-1 max-w-xs text-center px-4" style={{ color: "var(--muted)" }}>
@@ -507,6 +574,7 @@ export default function ChatInterface({ characterId }: Props) {
                 className="flex-1 rounded-2xl rounded-tl-sm px-4 py-3 text-sm leading-relaxed"
                 style={{ background: "var(--card-bg)", border: "1px solid var(--card-border)" }}
               >
+                <AudioPlayer text={character.greeting} charId={character.id} />
                 {renderRoleplayText(character.greeting)}
               </div>
             </div>
@@ -537,6 +605,15 @@ export default function ChatInterface({ characterId }: Props) {
                       : { background: "var(--card-bg)", border: "1px solid var(--card-border)" }
                   }
                 >
+                  {/* TTS pill — above message text, like competitor */}
+                  {msg.role === "assistant" && (
+                    <AudioPlayer
+                      text={stripImgTags(displayContent)}
+                      charId={character.id}
+                      autoPlay={ttsEnabled && msg.id === lastAiMsgIdRef.current}
+                    />
+                  )}
+
                   {msg.role === "user"
                     ? msg.content
                     : renderRoleplayText(stripImgTags(displayContent))}
@@ -587,6 +664,28 @@ export default function ChatInterface({ characterId }: Props) {
                     style={{ background: "rgba(244,114,182,0.08)", border: "1px solid rgba(244,114,182,0.2)" }}>
                     <span className="w-4 h-4 border-2 border-rose-400 border-t-transparent rounded-full animate-spin flex-shrink-0" />
                     <span style={{ color: "var(--muted)" }}>正在生成图片，稍候约 30 秒…</span>
+                  </div>
+                )}
+
+                {/* Tool executing indicator */}
+                {toolExecuting && (
+                  <div className="mt-3 flex items-center gap-2 text-xs px-3 py-2 rounded-lg"
+                    style={{ background: "rgba(99,102,241,0.08)", border: "1px solid rgba(99,102,241,0.25)" }}>
+                    <span className="w-4 h-4 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin flex-shrink-0" />
+                    <span style={{ color: "#818cf8" }}>
+                      {toolExecuting.name === "food_search" && `🍜 正在搜索「${toolExecuting.args?.keyword || ""}」外卖…`}
+                      {toolExecuting.name === "weather" && `🌤 正在查询「${toolExecuting.args?.city || ""}」天气…`}
+                      {toolExecuting.name === "web_search" && `🔍 正在搜索「${toolExecuting.args?.query || ""}」…`}
+                      {!["food_search","weather","web_search"].includes(toolExecuting.name) && `⚙️ 正在执行 ${toolExecuting.name}…`}
+                    </span>
+                  </div>
+                )}
+
+                {/* Tool result card (brief, auto-dismiss) */}
+                {toolResult && !toolExecuting && (
+                  <div className="mt-2 text-[10px] px-2 py-1 rounded flex items-center gap-1"
+                    style={{ background: toolResult.success ? "rgba(34,197,94,0.08)" : "rgba(239,68,68,0.08)", color: toolResult.success ? "#4ade80" : "#f87171" }}>
+                    {toolResult.success ? "✓" : "✗"} {toolResult.name} 完成
                   </div>
                 )}
 

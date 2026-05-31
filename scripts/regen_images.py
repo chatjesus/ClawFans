@@ -176,7 +176,7 @@ async def _gen_image_gemini(prompt: str, save_path: Path,
                 )
             response = await asyncio.to_thread(
                 client.models.generate_content,
-                model="gemini-3-pro-image-preview",
+                model="gemini-3.1-flash-image-preview",
                 contents=contents,
                 config=types.GenerateContentConfig(
                     response_modalities=["IMAGE", "TEXT"], temperature=1.0,

@@ -232,7 +232,8 @@ export default function Sidebar() {
     setOpenMenuId(null);
     setDeletingCharId(conv.character_id);
     try {
-      await deleteAllConversationsForCharacter(conv.character_id);
+      const token = await getToken();
+      await deleteAllConversationsForCharacter(conv.character_id, token);
       if (pathname === `/chat/${conv.character_id}`) router.push("/");
       loadChats();
     } catch { /* ignore */ } finally {

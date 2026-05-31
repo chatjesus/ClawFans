@@ -129,13 +129,15 @@ export async function fetchCharacter(id: number, locale?: string): Promise<Chara
 }
 
 export async function createCharacter(
-  data: CharacterCreate
+  data: CharacterCreate,
+  token?: string | null,
 ): Promise<Character> {
   const res = await fetch(`${API_BASE}/api/characters`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: authHeaders(token),
     body: JSON.stringify(data),
   });
+  if (res.status === 401) throw new Error("Please sign in to create a character");
   if (!res.ok) throw new Error("Failed to create character");
   return res.json();
 }
@@ -183,9 +185,13 @@ export async function fetchConversations(
   return res.json();
 }
 
-export async function deleteConversation(id: number): Promise<void> {
+export async function deleteConversation(
+  id: number,
+  token?: string | null,
+): Promise<void> {
   const res = await fetch(`${API_BASE}/api/chat/conversations/${id}`, {
     method: "DELETE",
+    headers: authHeaders(token),
     signal: AbortSignal.timeout(8000),
   });
   if (!res.ok && res.status !== 404) {
@@ -195,12 +201,13 @@ export async function deleteConversation(id: number): Promise<void> {
 
 /** Delete ALL conversations for a character (handles sidebar duplicates). */
 export async function deleteAllConversationsForCharacter(
-  characterId: number
+  characterId: number,
+  token?: string | null,
 ): Promise<void> {
-  const convs = await fetchConversations(characterId);
+  const convs = await fetchConversations(characterId, token);
   // Sequential deletes to avoid SQLite lock contention
   for (const c of convs) {
-    await deleteConversation(c.id);
+    await deleteConversation(c.id, token);
   }
 }
 
@@ -253,6 +260,8 @@ export async function sendMessageStream(
   onToolExecuting?: (tool: ToolExecuting) => void,
   onToolResult?: (result: ToolResult) => void,
   onToolFollowup?: (text: string) => void,
+  onStoryEvent?: (event: unknown) => void,
+  onVoice?: (url: string) => void,
 ): Promise<void> {
   try {
     const params = new URLSearchParams();
@@ -262,7 +271,7 @@ export async function sendMessageStream(
       {
         method: "POST",
         headers: authHeaders(token),
-        body: JSON.stringify({ content }),
+        body: JSON.stringify({ content, client_hour: new Date().getHours() }),
       }
     );
 
@@ -302,6 +311,8 @@ export async function sendMessageStream(
           if (data.tool_executing) onToolExecuting?.(data.tool_executing as ToolExecuting);
           if (data.tool_result) onToolResult?.(data.tool_result as ToolResult);
           if (data.tool_followup) onToolFollowup?.(data.tool_followup as string);
+          if (data.story_event) onStoryEvent?.(data.story_event);
+          if (data.voice?.url) onVoice?.(data.voice.url);
           if (data.done) { onDone(); return; }
           if (data.error) { onError(data.error); return; }
         } catch {

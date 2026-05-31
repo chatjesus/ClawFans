@@ -1,7 +1,7 @@
 """
-Image Generation Service — routes to Gemini 3 Pro Image (cloud) or ComfyUI (local).
+Image Generation Service — routes to Gemini 3.1 Flash Image (cloud) or ComfyUI (local).
 
-Gemini 3 Pro Image: high-quality reasoning-based generation via Vertex AI.
+Gemini 3.1 Flash Image: fast image generation via Vertex AI (cheaper than Pro).
 ComfyUI + NoobAI XL: local anime-style generation (no cloud dependency).
 
 Supports character reference images for visual consistency.
@@ -141,7 +141,7 @@ async def generate_image_gemini(
     output_dir: Optional[Path] = None,
     filename_prefix: str = "",
 ) -> Optional[str]:
-    """Generate an image via Gemini 3 Pro Image with optional character reference."""
+    """Generate an image via Gemini 3.1 Flash Image with optional character reference."""
     try:
         client = _get_gemini_client()
         from google.genai import types
@@ -168,7 +168,7 @@ async def generate_image_gemini(
 
         response = await asyncio.to_thread(
             client.models.generate_content,
-            model="gemini-3-pro-image-preview",
+            model="gemini-3.1-flash-image-preview",
             contents=contents,
             config=types.GenerateContentConfig(
                 response_modalities=["IMAGE", "TEXT"],

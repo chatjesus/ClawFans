@@ -33,9 +33,20 @@ desktop.ini
 backend/uploads/avatars/
 backend/uploads/refs/
 backend/uploads/scenes/
+backend/uploads/generated/
+backend/uploads/manga/
+backend/uploads/voice/
 !backend/uploads/avatars/.gitkeep
 !backend/uploads/refs/.gitkeep
 !backend/uploads/scenes/.gitkeep
+
+# Local TTS / test audio artifacts
+backend/test_*.mp3
+backend/*.mp3
+
+# Image-editing scratch artifacts + resume logs
+*_mask.png
+scripts/*_resume.txt
 
 # Credentials (NEVER commit)
 credentials/

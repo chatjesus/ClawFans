@@ -506,14 +506,23 @@ app = FastAPI(
 )
 
 # CORS – allow the Next.js frontend (local dev + production)
-_ALLOWED_ORIGINS = [
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-    "https://clawfans.tinyclaw.dev",
-]
+def get_allowed_origins() -> list[str]:
+    """Resolve CORS origins from the ALLOWED_ORIGINS env var (comma-separated),
+    falling back to local-dev defaults. Lets self-hosters change domains
+    without editing source."""
+    raw = os.getenv("ALLOWED_ORIGINS", "").strip()
+    if raw:
+        return [o.strip() for o in raw.split(",") if o.strip()]
+    return [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "https://clawfans.tinyclaw.dev",
+    ]
+
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=_ALLOWED_ORIGINS,
+    allow_origins=get_allowed_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -524,6 +533,7 @@ os.makedirs("uploads", exist_ok=True)
 os.makedirs(os.path.join("uploads", "avatars"), exist_ok=True)
 os.makedirs(os.path.join("uploads", "generated"), exist_ok=True)
 os.makedirs(os.path.join("uploads", "scenes"), exist_ok=True)
+os.makedirs(os.path.join("uploads", "voice"), exist_ok=True)
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 # Include routers
@@ -533,6 +543,15 @@ app.include_router(auth_router)
 app.include_router(upload_router)
 app.include_router(gateway_router)
 app.include_router(settings_router)
+
+from api.events import router as events_router
+app.include_router(events_router)
+
+from api.voice import router as voice_router
+app.include_router(voice_router)
+
+from api.tts import router as tts_router
+app.include_router(tts_router)
 
 
 @app.get("/api/health")

@@ -2,7 +2,7 @@
 Character management API – CRUD operations for AI characters.
 Supports ?locale= parameter to overlay translated content.
 """
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 from typing import Optional
 from pydantic import BaseModel
@@ -11,6 +11,7 @@ from models.database import get_db, Character, CharacterTranslation
 from models.schemas import (
     CharacterCreate, CharacterUpdate, CharacterResponse, CharacterCard
 )
+from auth.clerk import get_current_user_id, require_auth
 
 router = APIRouter(prefix="/api/characters", tags=["characters"])
 
@@ -45,6 +46,14 @@ def _get_best_translation(
             return tr
 
     return None  # Fall through to original Chinese
+
+
+def _require_owner(char: Character, user_id: str) -> None:
+    """Raise 403 unless ``user_id`` created this character. Characters with no
+    clerk_creator_id (seed / legacy) are system-owned and editable by no one
+    through the API."""
+    if char.clerk_creator_id != user_id:
+        raise HTTPException(status_code=403, detail="Not the character's creator")
 
 
 def _apply_locale(char: Character, locale: Optional[str]) -> Character:
@@ -86,8 +95,15 @@ def _apply_locale_card(char: Character, locale: Optional[str]) -> Character:
 # ── Character CRUD ────────────────────────────────────────────────────────────
 
 @router.post("/", response_model=CharacterResponse, status_code=201)
-def create_character(data: CharacterCreate, db: Session = Depends(get_db)):
-    """Create a new AI character."""
+async def create_character(
+    data: CharacterCreate,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Create a new AI character. Requires auth — caller becomes the creator."""
+    user_id = await get_current_user_id(request)
+    require_auth(user_id)
+
     char = Character(
         name=data.name,
         description=data.description,
@@ -97,6 +113,7 @@ def create_character(data: CharacterCreate, db: Session = Depends(get_db)):
         tags=data.tags,
         category=data.category,
         is_public=data.is_public,
+        clerk_creator_id=user_id,
     )
     db.add(char)
     db.commit()
@@ -115,6 +132,12 @@ def list_characters(
 ):
     """List characters with optional category filter, search, and locale overlay."""
     query = db.query(Character).filter(Character.is_public == True)
+
+    # Eager-load translations so the per-row _apply_locale_card overlay below
+    # doesn't trigger a separate SELECT per character (N+1).
+    if locale and locale != "zh":
+        from sqlalchemy.orm import selectinload
+        query = query.options(selectinload(Character.translations))
 
     if category and category.lower() != "featured":
         query = query.filter(Character.category == category)
@@ -163,15 +186,21 @@ def get_character(
 
 
 @router.put("/{character_id}", response_model=CharacterResponse)
-def update_character(
+async def update_character(
     character_id: int,
     data: CharacterUpdate,
+    request: Request,
     db: Session = Depends(get_db),
 ):
-    """Update a character."""
+    """Update a character. Only the creator may modify it."""
+    user_id = await get_current_user_id(request)
+    require_auth(user_id)
+
     char = db.query(Character).filter(Character.id == character_id).first()
     if not char:
         raise HTTPException(status_code=404, detail="Character not found")
+
+    _require_owner(char, user_id)
 
     update_data = data.model_dump(exclude_unset=True)
     for key, value in update_data.items():
@@ -183,11 +212,21 @@ def update_character(
 
 
 @router.delete("/{character_id}", status_code=204)
-def delete_character(character_id: int, db: Session = Depends(get_db)):
-    """Delete a character."""
+async def delete_character(
+    character_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Delete a character. Only the creator may delete it."""
+    user_id = await get_current_user_id(request)
+    require_auth(user_id)
+
     char = db.query(Character).filter(Character.id == character_id).first()
     if not char:
         raise HTTPException(status_code=404, detail="Character not found")
+
+    _require_owner(char, user_id)
+
     db.delete(char)
     db.commit()
 
@@ -224,15 +263,21 @@ def list_translations(character_id: int, db: Session = Depends(get_db)):
 
 
 @router.put("/{character_id}/translations", response_model=TranslationResponse)
-def upsert_translation(
+async def upsert_translation(
     character_id: int,
     data: TranslationUpsert,
+    request: Request,
     db: Session = Depends(get_db),
 ):
-    """Create or update a translation for a specific locale."""
+    """Create or update a translation for a specific locale. Only the
+    character's creator may edit its translations."""
+    user_id = await get_current_user_id(request)
+    require_auth(user_id)
+
     char = db.query(Character).filter(Character.id == character_id).first()
     if not char:
         raise HTTPException(status_code=404, detail="Character not found")
+    _require_owner(char, user_id)
     if data.locale not in SUPPORTED_LOCALES:
         raise HTTPException(status_code=400, detail=f"Unsupported locale: {data.locale}")
 

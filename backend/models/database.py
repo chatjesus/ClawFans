@@ -11,8 +11,12 @@ from sqlalchemy import (
 from sqlalchemy.orm import declarative_base, sessionmaker, relationship
 
 # Allow overriding via environment variable for different environments.
-# Default: clawfans.db in the backend directory.
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./clawfans.db")
+# Default: clawfans.db in the backend directory (matches README / compose).
+def get_database_url() -> str:
+    return os.getenv("DATABASE_URL", "sqlite:///./clawfans.db")
+
+
+DATABASE_URL = get_database_url()
 
 engine = create_engine(
     DATABASE_URL,
@@ -60,6 +64,9 @@ class Character(Base):
     message_count = Column(Integer, default=0)
     star_count = Column(Integer, default=0)
     creator_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    # Clerk user identity (string); used when the creator authed via Clerk
+    # rather than the legacy integer-FK users table.
+    clerk_creator_id = Column(String(200), nullable=True, index=True)
     # Rich lore / background story (shown on profile, injected into context)
     backstory = Column(Text, default="")
     # JSON array of reference image paths for visual consistency
@@ -67,6 +74,8 @@ class Character(Base):
     ref_images = Column(Text, default="")
     # Manual sort boost: higher = appears earlier in lists (default 0, new chars get 100)
     sort_weight = Column(Integer, default=0)
+    # TTS voice ID (edge-tts voice name). Empty = auto-select from tags+description.
+    voice_id = Column(String(100), default="")
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -221,6 +230,47 @@ class IdentityLink(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+# ── Event / Story System ──────────────────────────────────────────────────────
+
+class CharacterEvent(Base):
+    """
+    Story event template for a character.
+    Triggered at certain intimacy milestones or special conditions.
+    Each event has 3 choices that affect intimacy and may unlock content.
+    """
+    __tablename__ = "character_events"
+
+    id = Column(Integer, primary_key=True, index=True)
+    char_id = Column(Integer, ForeignKey("characters.id"), nullable=False, index=True)
+    event_type = Column(String(30), default="milestone")  # milestone/daily/crisis/anniversary
+    title = Column(String(200), nullable=False)           # "凌晨三点的消息"
+    description = Column(Text, default="")               # Scene setup text shown to user
+    trigger_json = Column(Text, default="{}")            # {"type":"intimacy_gte","value":20}
+    choices_json = Column(Text, default="[]")            # [{text, intimacy_delta, unlock_hint}]
+    outcome_prompt = Column(Text, default="")            # LLM prompt for character reaction
+    sort_order = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    character = relationship("Character")
+    instances = relationship("ConversationEvent", back_populates="event")
+
+
+class ConversationEvent(Base):
+    """Per-conversation event instance — tracks state for each user's relationship."""
+    __tablename__ = "conversation_events"
+
+    id = Column(Integer, primary_key=True, index=True)
+    conversation_id = Column(Integer, ForeignKey("conversations.id"), nullable=False, index=True)
+    event_id = Column(Integer, ForeignKey("character_events.id"), nullable=False)
+    status = Column(String(20), default="pending")       # pending/active/completed/skipped
+    choice_index = Column(Integer, nullable=True)        # which option user selected (0/1/2)
+    triggered_at = Column(DateTime, nullable=True)
+    completed_at = Column(DateTime, nullable=True)
+
+    conversation = relationship("Conversation")
+    event = relationship("CharacterEvent", back_populates="instances")
+
+
 def get_db():
     """Dependency to get DB session."""
     db = SessionLocal()
@@ -230,7 +280,51 @@ def get_db():
         db.close()
 
 
+def _add_column_sql(table_name: str, col) -> str:
+    """Build an `ALTER TABLE … ADD COLUMN` statement for a single ORM column.
+    Only emits a DEFAULT for simple scalar defaults (SQLite can't add a
+    NOT NULL column without one, and callable defaults like utcnow can't be
+    expressed in DDL — but those columns are old and never missing)."""
+    col_type = col.type.compile(dialect=engine.dialect)
+    sql = f"ALTER TABLE {table_name} ADD COLUMN {col.name} {col_type}"
+    default = col.default
+    if default is not None and getattr(default, "is_scalar", False):
+        val = default.arg
+        if isinstance(val, bool):
+            sql += f" DEFAULT {1 if val else 0}"
+        elif isinstance(val, (int, float)):
+            sql += f" DEFAULT {val}"
+        elif isinstance(val, str):
+            escaped = val.replace("'", "''")
+            sql += f" DEFAULT '{escaped}'"
+    return sql
+
+
+def ensure_columns(bind=None) -> None:
+    """Forward-migrate existing tables: add any model columns that are missing.
+
+    create_all() only creates missing *tables*, never missing *columns*, so a
+    database created before a model gained a column drifts and breaks on every
+    query. This adds those columns in place (no data loss). Idempotent; a no-op
+    on a fresh/current schema. There's no Alembic in this project, so this is
+    the safety net when models evolve.
+    """
+    from sqlalchemy import inspect as sa_inspect, text
+    bind = bind or engine
+    insp = sa_inspect(bind)
+    existing_tables = set(insp.get_table_names())
+    with bind.begin() as conn:
+        for table in Base.metadata.sorted_tables:
+            if table.name not in existing_tables:
+                continue  # create_all() will create it fresh, with all columns
+            live_cols = {c["name"] for c in insp.get_columns(table.name)}
+            for col in table.columns:
+                if col.name not in live_cols:
+                    conn.execute(text(_add_column_sql(table.name, col)))
+
+
 def init_db():
-    """Create all tables."""
+    """Create all tables, then forward-migrate any drifted columns."""
     Base.metadata.create_all(bind=engine)
+    ensure_columns(engine)
 

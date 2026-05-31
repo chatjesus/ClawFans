@@ -61,6 +61,12 @@ body {
   animation: fadeIn 0.15s ease-in;
 }
 
+/* TTS equalizer bar animation */
+@keyframes tts-bar {
+  from { transform: scaleY(0.3); }
+  to   { transform: scaleY(1); }
+}
+
 /* Card hover lift — SynClub style */
 .card-hover-lift {
   transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);

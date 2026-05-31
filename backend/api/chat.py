@@ -111,12 +111,27 @@ async def list_conversations(
     return result
 
 
+def _ensure_conv_visible(conv: Conversation, user_id: str) -> None:
+    """A conversation is visible to its owner; anonymous-owned conversations
+    are visible to anyone (no identity to verify against). Cross-user reads
+    raise 403."""
+    owner = conv.clerk_user_id
+    if owner and owner != user_id:
+        raise HTTPException(status_code=403, detail="Not your conversation")
+
+
 @router.get("/conversations/{conversation_id}", response_model=ConversationDetail)
-def get_conversation(conversation_id: int, db: Session = Depends(get_db)):
+async def get_conversation(
+    conversation_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+):
     """Get a conversation with all its messages."""
     conv = db.query(Conversation).filter(Conversation.id == conversation_id).first()
     if not conv:
         raise HTTPException(status_code=404, detail="Conversation not found")
+    user_id = await get_current_user_id(request)
+    _ensure_conv_visible(conv, user_id)
 
     char = db.query(Character).filter(Character.id == conv.character_id).first()
 
@@ -139,11 +154,17 @@ def get_conversation(conversation_id: int, db: Session = Depends(get_db)):
 
 
 @router.delete("/conversations/{conversation_id}", status_code=204)
-def delete_conversation(conversation_id: int, db: Session = Depends(get_db)):
+async def delete_conversation(
+    conversation_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+):
     """Delete a conversation and all its messages."""
     conv = db.query(Conversation).filter(Conversation.id == conversation_id).first()
     if not conv:
         raise HTTPException(status_code=404, detail="Conversation not found")
+    user_id = await get_current_user_id(request)
+    _ensure_conv_visible(conv, user_id)
     db.query(Message).filter(Message.conversation_id == conversation_id).delete()
     db.delete(conv)
     db.commit()
@@ -168,11 +189,17 @@ async def send_message(
     if not conv:
         raise HTTPException(status_code=404, detail="Conversation not found")
 
+    user_id = await get_current_user_id(request)
+    _ensure_conv_visible(conv, user_id)
+
     char = db.query(Character).filter(Character.id == conv.character_id).first()
     if not char:
         raise HTTPException(status_code=404, detail="Character not found")
 
-    # Overlay translated system_prompt: requested locale → English → Chinese
+    # Build a request-scoped, localized prompt as a LOCAL string. We never
+    # mutate `char.system_prompt` itself — doing so used to risk leaking
+    # locale overlays back into the characters table on commit.
+    localized_prompt: str | None = None
     if locale and locale not in ("zh", "zh-CN"):
         tr = db.query(CharacterTranslation).filter(
             CharacterTranslation.character_id == char.id,
@@ -185,21 +212,23 @@ async def send_message(
                 CharacterTranslation.locale == "en",
             ).first()
         if tr and tr.system_prompt:
-            char.system_prompt = tr.system_prompt
+            localized_prompt = tr.system_prompt
 
     # Inject language directive so the model replies in user's language
     if locale and locale in LOCALE_LANGUAGE:
+        base = localized_prompt if localized_prompt is not None else char.system_prompt
         lang = LOCALE_LANGUAGE[locale]
         directive = f"\n\n[IMPORTANT: Always reply in {lang}. Never switch languages.]"
-        char.system_prompt = char.system_prompt + directive
-
-    user_id = await get_current_user_id(request)
+        localized_prompt = base + directive
 
     async def event_stream():
         try:
             result = StreamResult()
             gen = generate_reply_stream(
-                char, conv, data.content, db, user_id=user_id, result_holder=result
+                char, conv, data.content, db,
+                user_id=user_id, result_holder=result,
+                client_hour=data.client_hour,
+                system_prompt_override=localized_prompt,
             )
             # Use a queue so keepalive timeouts never cancel the generator task
             _DONE = object()
@@ -346,6 +375,33 @@ async def send_message(
                 milestone = su.get("milestone") or {}
                 yield f"data: {json.dumps({'streak': {'streak_days': su['streak_days'], 'broken': su.get('broken', False), 'milestone_toast': milestone.get('toast'), 'intimacy_bonus': milestone.get('intimacy_bonus', 0)}})}\n\n"
 
+            # ── Story Event Trigger Check ────────────────────────────────────
+            try:
+                from services.event_service import check_events
+                event_data = check_events(conv, char, db)
+                if event_data:
+                    yield f"data: {json.dumps({'story_event': event_data})}\n\n"
+            except Exception as ev_err:
+                import logging
+                logging.getLogger(__name__).warning(f"Event check error: {ev_err}")
+
+            # ── TTS Voice Generation (non-blocking) ──────────────────────────
+            try:
+                from services.voice_service import synthesize_speech
+                display_text = result.full_reply or ""
+                if display_text.strip():
+                    audio_url = await synthesize_speech(
+                        text=display_text,
+                        voice_id=char.voice_id or "",
+                        tags=char.tags or "",
+                        description=char.description or "",
+                    )
+                    if audio_url:
+                        yield f"data: {json.dumps({'voice': {'url': audio_url}})}\n\n"
+            except Exception as tts_err:
+                import logging
+                logging.getLogger(__name__).warning(f"TTS error: {tts_err}")
+
             yield f"data: {json.dumps({'done': True})}\n\n"
         except Exception as e:
             yield f"data: {json.dumps({'error': str(e)})}\n\n"
@@ -362,8 +418,9 @@ async def send_message(
 
 
 @router.get("/conversations/{conversation_id}/messages", response_model=list[ChatMessageResponse])
-def get_messages(
+async def get_messages(
     conversation_id: int,
+    request: Request,
     skip: int = 0,
     limit: int = 100,
     db: Session = Depends(get_db),
@@ -372,6 +429,8 @@ def get_messages(
     conv = db.query(Conversation).filter(Conversation.id == conversation_id).first()
     if not conv:
         raise HTTPException(status_code=404, detail="Conversation not found")
+    user_id = await get_current_user_id(request)
+    _ensure_conv_visible(conv, user_id)
 
     messages = (
         db.query(Message)

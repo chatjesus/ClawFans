@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { useAuth } from "@clerk/nextjs";
 import { createCharacter } from "@/lib/api";
 import { useT } from "@/contexts/I18nContext";
 
@@ -129,6 +130,7 @@ function AvatarUploader({ value, onChange }: { value: string; onChange: (url: st
 export default function CreatePage() {
   const router = useRouter();
   const t = useT();
+  const { getToken } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState({
@@ -145,7 +147,11 @@ export default function CreatePage() {
     e.preventDefault();
     if (!form.name.trim() || !form.system_prompt.trim()) { setError(t.create.errorRequired); return; }
     setLoading(true); setError(null);
-    try { const char = await createCharacter(form); router.push("/chat/" + char.id); }
+    try {
+      const token = await getToken();
+      const char = await createCharacter(form, token);
+      router.push("/chat/" + char.id);
+    }
     catch (err) { setError(err instanceof Error ? err.message : t.create.errorFailed); setLoading(false); }
   };
 

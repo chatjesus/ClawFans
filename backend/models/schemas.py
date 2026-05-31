@@ -69,6 +69,7 @@ class CharacterCard(BaseModel):
 
 class ChatMessageCreate(BaseModel):
     content: str = Field(..., min_length=1)
+    client_hour: int | None = None   # 0-23, user's local hour for schedule state
 
 
 class ChatMessageResponse(BaseModel):
