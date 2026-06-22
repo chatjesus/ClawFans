@@ -470,10 +470,20 @@ async def process_reply_images(
                 scene_idx_to_url[idx] = url
                 logger.info(f"Serving pre-generated scene {idx}: {url}")
 
-    # 2. Handle [IMG:] tags — generate with avatar reference + intimacy augmentation
-    img_tags = extract_image_tags(full_reply)
+    # 2. Handle [IMG:] tags — generate with avatar reference + intimacy augmentation.
+    # Gated by operator-tunable ops-config levers (see services/ops_config.py):
+    #   • nsfw_images_enabled — master switch; when False, skip ALL [IMG:] generation.
+    #   • nsfw_unlock_intimacy — intimacy threshold that flips the explicit flag.
+    #   • vip_only_explicit — paywall hook; when True, force non-explicit regardless.
+    from services.ops_config import get_ops_value
+
     tag_to_url: dict[str, str] = {}
-    is_nsfw = intimacy_level >= 40
+    img_tags = extract_image_tags(full_reply) if get_ops_value(db, "nsfw_images_enabled", True) else []
+
+    unlock_at = get_ops_value(db, "nsfw_unlock_intimacy", 40)
+    is_nsfw = intimacy_level >= unlock_at
+    if get_ops_value(db, "vip_only_explicit", False):
+        is_nsfw = False
 
     if img_tags:
         logger.info(f"Generating {len(img_tags)} image(s) with intimacy={intimacy_level}...")

@@ -105,6 +105,16 @@ export interface Memory {
   created_at: string;
 }
 
+/** Operator-tunable config for running the adult companion product. */
+export interface OpsConfig {
+  nsfw_unlock_intimacy: number;
+  intimacy_gain_multiplier: number;
+  proactive_greeting_min_hours: number;
+  daily_checkin_intimacy_bonus: number;
+  nsfw_images_enabled: boolean;
+  vip_only_explicit: boolean;
+}
+
 // ── API Functions ──
 
 export async function fetchHealth(): Promise<HealthStatus> {
@@ -406,5 +416,39 @@ export async function deleteMemory(
   });
   if (res.status === 401) throw new Error("Please sign in");
   if (!res.ok && res.status !== 404) throw new Error(`Delete failed: ${res.status}`);
+}
+
+// ── Operator admin: ops-config ──
+
+/** Build headers for admin requests, attaching the admin token gate when present. */
+function adminHeaders(adminToken?: string | null): HeadersInit {
+  const h: HeadersInit = { "Content-Type": "application/json" };
+  if (adminToken) h["X-Admin-Token"] = adminToken;
+  return h;
+}
+
+/** Fetch the operations config. Sends X-Admin-Token when a token is provided. */
+export async function fetchOpsConfig(adminToken?: string | null): Promise<OpsConfig> {
+  const res = await fetch(`${API_BASE}/api/admin/ops-config`, {
+    headers: adminHeaders(adminToken),
+  });
+  if (res.status === 403) throw new Error("Admin token required or invalid");
+  if (!res.ok) throw new Error("Failed to fetch ops config");
+  return res.json();
+}
+
+/** Update the operations config with a partial set of changes. Returns the full updated object. */
+export async function updateOpsConfig(
+  updates: Partial<OpsConfig>,
+  adminToken?: string | null,
+): Promise<OpsConfig> {
+  const res = await fetch(`${API_BASE}/api/admin/ops-config`, {
+    method: "PUT",
+    headers: adminHeaders(adminToken),
+    body: JSON.stringify(updates),
+  });
+  if (res.status === 403) throw new Error("Admin token required or invalid");
+  if (!res.ok) throw new Error("Failed to update ops config");
+  return res.json();
 }
 
