@@ -27,6 +27,10 @@ DEFAULTS: dict = {
     "nsfw_images_enabled": True,
     # Gate the most explicit content behind a VIP/paid flag (paywall hook).
     "vip_only_explicit": False,
+    # Daily surprise / gacha: master switch + rarity weights (dopamine cadence +
+    # monetization lever — rarer = bigger reward, lower odds).
+    "surprise_enabled": True,
+    "surprise_rarity_weights": {"common": 60, "rare": 28, "epic": 10, "legendary": 2},
 }
 
 

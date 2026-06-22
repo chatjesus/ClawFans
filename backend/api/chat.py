@@ -485,3 +485,43 @@ async def checkin(
         resp["message_id"] = msg.id
     return resp
 
+
+@router.post("/conversations/{conversation_id}/surprise")
+async def surprise(
+    conversation_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Daily surprise / gacha draw. One per calendar day: random rarity grants
+    intimacy and a rarity-scaled in-character message (persisted). Returns
+    {available: false} if already drawn today or the lever is off."""
+    conv = db.query(Conversation).filter(Conversation.id == conversation_id).first()
+    if not conv:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    user_id = await get_current_user_id(request)
+    _ensure_conv_visible(conv, user_id)
+
+    char = db.query(Character).filter(Character.id == conv.character_id).first()
+    if not char:
+        raise HTTPException(status_code=404, detail="Character not found")
+
+    from datetime import date
+    from services.surprise import perform_surprise, generate_surprise_message
+    reward = perform_surprise(conv, db, date.today().isoformat())
+    if not reward:
+        return {"available": False}
+
+    message = await generate_surprise_message(char, conv, reward["rarity"], db)
+    msg = Message(conversation_id=conv.id, role="assistant", content=message)
+    db.add(msg)
+    db.commit()
+    db.refresh(msg)
+    return {
+        "available": True,
+        "rarity": reward["rarity"],
+        "intimacy_bonus": reward["intimacy_bonus"],
+        "intimacy_level": conv.intimacy_level or 0,
+        "message": message,
+        "message_id": msg.id,
+    }
+

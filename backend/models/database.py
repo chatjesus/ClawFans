@@ -118,6 +118,7 @@ class Conversation(Base):
     streak_days = Column(Integer, default=0)
     last_chat_date = Column(String(10), nullable=True)   # ISO date "2026-02-22"
     last_checkin_date = Column(String(10), nullable=True)  # daily check-in reward marker
+    last_surprise_date = Column(String(10), nullable=True)  # daily surprise/gacha draw marker
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
