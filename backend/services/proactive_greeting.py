@@ -58,7 +58,11 @@ async def generate_return_greeting(
     has_history = last_msg is not None
     last_activity = last_msg.created_at if last_msg else None
 
-    if not should_send_return_greeting(last_activity, now, has_history):
+    # Operator-tunable: how long away before the character reaches out first.
+    from services.ops_config import get_ops_value
+    min_hours = get_ops_value(db, "proactive_greeting_min_hours", RETURN_GREETING_MIN_HOURS)
+
+    if not should_send_return_greeting(last_activity, now, has_history, min_hours=min_hours):
         return None
 
     hours = _hours_away(last_activity, now)

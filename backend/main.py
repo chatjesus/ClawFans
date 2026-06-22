@@ -553,6 +553,9 @@ app.include_router(voice_router)
 from api.memory_api import router as memory_router
 app.include_router(memory_router)
 
+from api.admin import router as admin_router
+app.include_router(admin_router)
+
 
 @app.get("/")
 async def root():

@@ -397,9 +397,11 @@ async def generate_reply_stream(
         db.add(assistant_msg)
         character.message_count = (character.message_count or 0) + 2
 
-        # Update intimacy level
+        # Update intimacy level (rate is operator-tunable via ops-config)
+        from services.ops_config import get_ops_value
         old_level = conversation.intimacy_level or 0
-        gain = calc_intimacy_gain(user_message, display_reply)
+        multiplier = get_ops_value(db, "intimacy_gain_multiplier", 1.0)
+        gain = int(round(calc_intimacy_gain(user_message, display_reply) * multiplier))
         new_level = max(0, min(100, old_level + gain))
         conversation.intimacy_level = new_level
 

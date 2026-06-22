@@ -271,6 +271,17 @@ class ConversationEvent(Base):
     event = relationship("CharacterEvent", back_populates="instances")
 
 
+class OpsConfig(Base):
+    """Operator-tunable settings (the configurable adult-operations layer).
+    One row per key; value is JSON-encoded so ints/floats/bools round-trip.
+    Read through services/ops_config.py (which merges with defaults)."""
+    __tablename__ = "ops_config"
+
+    key = Column(String(100), primary_key=True)
+    value = Column(Text, nullable=False)  # JSON-encoded
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 def get_db():
     """Dependency to get DB session."""
     db = SessionLocal()
