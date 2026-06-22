@@ -211,6 +211,27 @@ export async function checkinConversation(
   }
 }
 
+/**
+ * Draw the once-per-day "surprise" (gacha) for a conversation. The backend
+ * grants a variable intimacy reward + an in-character line. Tolerant like
+ * checkinConversation: on network/!ok error returns { available: false }.
+ */
+export async function drawSurprise(
+  conversationId: number,
+  token?: string | null,
+): Promise<{ available: boolean; rarity?: string; intimacy_bonus?: number; intimacy_level?: number; message?: string; message_id?: number }> {
+  try {
+    const res = await fetch(`${API_BASE}/api/chat/conversations/${conversationId}/surprise`, {
+      method: "POST",
+      headers: authHeaders(token),
+    });
+    if (!res.ok) return { available: false };
+    return res.json();
+  } catch {
+    return { available: false };
+  }
+}
+
 export async function fetchConversations(
   characterId?: number,
   token?: string | null,

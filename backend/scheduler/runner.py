@@ -107,7 +107,7 @@ async def _send_telegram(chat_id: str, text: str) -> bool:
 async def scheduler_loop(interval_seconds: int = 30):
     """Background loop that checks for due jobs and scans for proactive messages."""
     logger.info(f"Scheduler started (interval: {interval_seconds}s)")
-    # Proactive scanner runs every 5 minutes (not every 30s tick)
+    # Proactive scanners run every 5 minutes (not every 30s tick)
     _proactive_tick = 0
     _proactive_every = max(1, 300 // interval_seconds)  # ~5 min
 
@@ -125,6 +125,16 @@ async def scheduler_loop(interval_seconds: int = 30):
                         logger.info(f"[Proactive] Scheduled {count} new proactive job(s)")
                 except Exception as pe:
                     logger.error(f"Proactive scan error: {pe}")
+
+                # Web proactive recall: stage "missed you" messages for quiet
+                # web conversations (Telegram is handled above).
+                try:
+                    from services.web_proactive import stage_web_proactive_messages
+                    web_count = await stage_web_proactive_messages()
+                    if web_count:
+                        logger.info(f"[WebProactive] Staged {web_count} message(s)")
+                except Exception as we:
+                    logger.error(f"Web proactive scan error: {we}")
 
         except Exception as e:
             logger.error(f"Scheduler error: {e}")

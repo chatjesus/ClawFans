@@ -76,6 +76,7 @@ class ChatMessageResponse(BaseModel):
     id: int
     role: str
     content: str
+    is_proactive: bool = False   # True = character reached out first (recall)
     created_at: datetime
 
     model_config = {"from_attributes": True}

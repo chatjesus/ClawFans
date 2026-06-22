@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Optional
 
 from services.image_service import (
-    generate_image_gemini,
+    generate_image,
     _resolve_avatar_bytes,
     get_char_ref_bytes,
     get_scene_dir,
@@ -125,8 +125,6 @@ async def pregenerate_scenes(
             return existing
 
         scene_dir = get_scene_dir(character_id)
-        # Prefer dedicated portrait reference over avatar thumbnail
-        ref_bytes = get_char_ref_bytes(character_id) or _resolve_avatar_bytes(avatar_url)
 
         scene_descs = await plan_scenes(name, description, system_prompt)
         logger.info(f"Generating {NUM_SCENES} scenes for '{name}' (id={character_id})...")
@@ -136,13 +134,19 @@ async def pregenerate_scenes(
             if i in existing:
                 continue
 
+            # Intimate/climax scenes (3 = personality pose, 4 = emotional climax)
+            # get the NSFW-capable path; earlier scenes stay safe. Routing through
+            # the provider-aware generate_image prefers local ComfyUI (NSFW) when
+            # available and falls back to the censored Gemini backend otherwise.
+            nsfw = i >= 3
+
             url = None
             for attempt in range(3):
-                url = await generate_image_gemini(
+                url = await generate_image(
                     desc,
-                    reference_image=ref_bytes,
-                    output_dir=scene_dir,
-                    filename_prefix=f"scene_{i}_",
+                    character_id=character_id,
+                    avatar_url=avatar_url,
+                    nsfw=nsfw,
                 )
                 if url:
                     break

@@ -119,6 +119,10 @@ class Conversation(Base):
     last_chat_date = Column(String(10), nullable=True)   # ISO date "2026-02-22"
     last_checkin_date = Column(String(10), nullable=True)  # daily check-in reward marker
     last_surprise_date = Column(String(10), nullable=True)  # daily surprise/gacha draw marker
+    # Web proactive recall: drives the "she reached out while you were away" loop.
+    last_active_at = Column(DateTime, default=datetime.utcnow)   # last user activity (inactivity timer)
+    last_proactive_at = Column(DateTime, nullable=True)          # last proactive message we staged
+    proactive_enabled = Column(Boolean, default=True)           # per-conversation opt-out
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -134,6 +138,8 @@ class Message(Base):
     conversation_id = Column(Integer, ForeignKey("conversations.id"), nullable=False)
     role = Column(String(20), nullable=False)  # "user" or "assistant"
     content = Column(Text, nullable=False)
+    # True = the character reached out first (proactive recall), not a reply.
+    is_proactive = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     conversation = relationship("Conversation", back_populates="messages")

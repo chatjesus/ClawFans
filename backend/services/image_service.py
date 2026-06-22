@@ -32,10 +32,7 @@ SCENES_DIR.mkdir(parents=True, exist_ok=True)
 REFS_DIR = BACKEND_DIR / "uploads" / "refs"
 REFS_DIR.mkdir(parents=True, exist_ok=True)
 
-GCP_CREDENTIALS = os.getenv(
-    "GOOGLE_APPLICATION_CREDENTIALS",
-    r"C:\Users\PRO\Desktop\CUDA\credentials\pdfconverter-415414-d9dbb1a4eec6.json",
-)
+GCP_CREDENTIALS = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "")
 GCP_PROJECT = os.getenv("GCP_PROJECT", "pdfconverter-415414")
 GCP_LOCATION = os.getenv("GCP_LOCATION", "global")
 

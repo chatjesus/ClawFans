@@ -10,6 +10,7 @@ import {
   createConversation,
   fetchCharacter,
   checkinConversation,
+  drawSurprise,
   resolveImageUrl,
   type ChatMessage,
   type ChatImage,
@@ -130,6 +131,23 @@ function getIntimacyTier(level: number) {
   return tier;
 }
 
+// Surprise (gacha) rarity → reveal styling. Mirrors backend rarity strings.
+const SURPRISE_RARITY: Record<string, { label: string; color: string; shine: boolean }> = {
+  common:    { label: "普通", color: "#9ca3af", shine: false },
+  rare:      { label: "稀有", color: "#60a5fa", shine: false },
+  epic:      { label: "史诗", color: "#a855f7", shine: false },
+  legendary: { label: "传说", color: "#f5c518", shine: true },
+};
+
+function getSurpriseRarity(rarity?: string) {
+  return (rarity && SURPRISE_RARITY[rarity]) || SURPRISE_RARITY.common;
+}
+
+interface SurpriseReveal {
+  rarity: string;
+  intimacy_bonus: number;
+}
+
 export default function ChatInterface({ characterId }: Props) {
   const t = useT();
   const { locale } = useI18n();
@@ -149,6 +167,9 @@ export default function ChatInterface({ characterId }: Props) {
   const [intimacyLevel, setIntimacyLevel] = useState(0);
   const [intimacyToast, setIntimacyToast] = useState<IntimacyUpdate | null>(null);
   const [checkinToast, setCheckinToast] = useState<number | null>(null);
+  const [surpriseReveal, setSurpriseReveal] = useState<SurpriseReveal | null>(null);
+  const [surpriseUnavailable, setSurpriseUnavailable] = useState(false);
+  const [drawingSurprise, setDrawingSurprise] = useState(false);
   const [streakDays, setStreakDays] = useState(0);
   const [streakToast, setStreakToast] = useState<StreakUpdate | null>(null);
   const [toolExecuting, setToolExecuting] = useState<ToolExecuting | null>(null);
@@ -180,6 +201,9 @@ export default function ChatInterface({ characterId }: Props) {
     setStreamingImages([]);
     setIntimacyLevel(0);
     setIntimacyToast(null);
+    setSurpriseReveal(null);
+    setSurpriseUnavailable(false);
+    setDrawingSurprise(false);
     setStreakDays(0);
     setStreakToast(null);
     setToolExecuting(null);
@@ -376,6 +400,40 @@ export default function ChatInterface({ characterId }: Props) {
     }
   };
 
+  const handleDrawSurprise = async () => {
+    if (!conversationId || drawingSurprise) return;
+    setDrawingSurprise(true);
+    try {
+      const token = await getToken();
+      const res = await drawSurprise(conversationId, token);
+      if (!res.available) {
+        setSurpriseUnavailable(true);
+        setTimeout(() => setSurpriseUnavailable(false), 4000);
+        return;
+      }
+      // Celebratory reveal, colored by rarity.
+      setSurpriseReveal({
+        rarity: res.rarity ?? "common",
+        intimacy_bonus: res.intimacy_bonus ?? 0,
+      });
+      setTimeout(() => setSurpriseReveal(null), 4000);
+      // Update intimacy meter.
+      if (typeof res.intimacy_level === "number") setIntimacyLevel(res.intimacy_level);
+      // Append the in-character line as a new assistant message.
+      if (res.message) {
+        const surpriseMsg: ChatMessage = {
+          id: uniqueId(),
+          role: "assistant",
+          content: res.message,
+          created_at: new Date().toISOString(),
+        };
+        setMessages((prev) => [...prev, surpriseMsg]);
+      }
+    } finally {
+      setDrawingSurprise(false);
+    }
+  };
+
   // ── Loading states ──
   if (error && !character) {
     return (
@@ -485,6 +543,43 @@ export default function ChatInterface({ characterId }: Props) {
         </div>
       )}
 
+      {/* ── Daily Surprise (gacha) Reveal Overlay ── */}
+      {surpriseReveal && (() => {
+        const r = getSurpriseRarity(surpriseReveal.rarity);
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
+            <div
+              className="px-8 py-6 rounded-3xl text-center text-white shadow-2xl animate-bounce"
+              style={{
+                background: `linear-gradient(135deg, ${r.color}, ${r.color}cc)`,
+                boxShadow: r.shine
+                  ? `0 0 36px 6px ${r.color}99, 0 0 80px 12px ${r.color}55`
+                  : `0 0 28px 4px ${r.color}66`,
+                border: r.shine ? `2px solid ${r.color}` : "none",
+              }}
+            >
+              <div className="text-4xl mb-2">{r.shine ? "🌟🎁🌟" : "✨🎁✨"}</div>
+              <div className="text-lg font-bold">
+                {r.label}惊喜！
+              </div>
+              <div className="text-sm font-medium mt-1 opacity-95">
+                亲密度 +{surpriseReveal.intimacy_bonus}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ── Surprise already claimed today Toast ── */}
+      {surpriseUnavailable && (
+        <div
+          className="fixed top-4 left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-2xl text-white text-sm font-medium shadow-xl animate-bounce"
+          style={{ background: "linear-gradient(135deg, #f59e0b, #d97706)" }}
+        >
+          🎁 今天的惊喜已经领取啦，明天再来~
+        </div>
+      )}
+
       {/* ── Intimacy Unlock Toast ── */}
       {intimacyToast && (
         <div
@@ -563,6 +658,20 @@ export default function ChatInterface({ characterId }: Props) {
           >
             <span>🧠</span>
             记忆
+          </button>
+          {/* Daily surprise (gacha) draw */}
+          <button
+            onClick={handleDrawSurprise}
+            disabled={drawingSurprise}
+            title="每日惊喜 · 开盒"
+            className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] transition-all border border-transparent text-gray-400 hover:text-amber-300 hover:border-amber-300/30 disabled:opacity-40"
+          >
+            {drawingSurprise ? (
+              <span className="w-3 h-3 border border-amber-300/70 border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <span>🎁</span>
+            )}
+            惊喜
           </button>
         </div>
 

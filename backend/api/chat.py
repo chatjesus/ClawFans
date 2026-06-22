@@ -4,6 +4,7 @@ Chat API – conversation management and streaming chat with AI characters.
 import asyncio
 import json
 import re
+from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
@@ -143,7 +144,9 @@ async def get_conversation(
         title=conv.title,
         messages=[
             ChatMessageResponse(
-                id=m.id, role=m.role, content=m.content, created_at=m.created_at
+                id=m.id, role=m.role, content=m.content,
+                is_proactive=bool(getattr(m, "is_proactive", False)),
+                created_at=m.created_at,
             )
             for m in conv.messages
         ],
@@ -195,6 +198,12 @@ async def send_message(
     char = db.query(Character).filter(Character.id == conv.character_id).first()
     if not char:
         raise HTTPException(status_code=404, detail="Character not found")
+
+    # Mark user activity so the proactive-recall timer (web_proactive) resets.
+    # No explicit commit here: chat_service commits the conversation downstream
+    # in this same session. An early commit would expire char/conv and break
+    # the message_count / intimacy / streak writes that ride that later commit.
+    conv.last_active_at = datetime.utcnow()
 
     # Build a request-scoped, localized prompt as a LOCAL string. We never
     # mutate `char.system_prompt` itself — doing so used to risk leaking
@@ -443,6 +452,33 @@ async def get_messages(
     return messages
 
 
+@router.get("/conversations/{conversation_id}/poll", response_model=list[ChatMessageResponse])
+async def poll_messages(
+    conversation_id: int,
+    request: Request,
+    after_id: int = 0,
+    db: Session = Depends(get_db),
+):
+    """Lightweight poll for messages newer than ``after_id``. An open chat tab
+    calls this on an interval to surface proactive ('missed you') messages the
+    scheduler staged while the user was idle, with no reload. Returns [] when
+    nothing new."""
+    conv = db.query(Conversation).filter(Conversation.id == conversation_id).first()
+    if not conv:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    user_id = await get_current_user_id(request)
+    _ensure_conv_visible(conv, user_id)
+
+    rows = (
+        db.query(Message)
+        .filter(Message.conversation_id == conversation_id, Message.id > after_id)
+        .order_by(Message.id.asc())
+        .limit(50)
+        .all()
+    )
+    return rows
+
+
 @router.post("/conversations/{conversation_id}/checkin")
 async def checkin(
     conversation_id: int,
@@ -468,8 +504,25 @@ async def checkin(
     from services.checkin import grant_daily_checkin
     checkin_reward = grant_daily_checkin(conv, db, date.today().isoformat())
 
+    # The background scheduler (web_proactive) may have already staged a
+    # "missed you" message while the user was away. If the newest message is
+    # that unanswered proactive, don't greet a second time on open.
+    newest = (
+        db.query(Message)
+        .filter(Message.conversation_id == conv.id)
+        .order_by(Message.id.desc())
+        .first()
+    )
+    already_reached_out = bool(
+        newest and newest.role == "assistant" and getattr(newest, "is_proactive", False)
+    )
+
     from services.proactive_greeting import generate_return_greeting
-    greeting = await generate_return_greeting(char, conv, db)
+    greeting = None if already_reached_out else await generate_return_greeting(char, conv, db)
+
+    # The user is here now — reset the proactive-recall timer.
+    conv.last_active_at = datetime.utcnow()
+    db.commit()
 
     resp = {
         "greeting": None,
