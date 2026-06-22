@@ -12,6 +12,7 @@ from models.schemas import (
     CharacterCreate, CharacterUpdate, CharacterResponse, CharacterCard
 )
 from auth.clerk import get_current_user_id, require_auth
+from services.character_card import card_to_character_fields
 
 router = APIRouter(prefix="/api/characters", tags=["characters"])
 
@@ -113,6 +114,47 @@ async def create_character(
         tags=data.tags,
         category=data.category,
         is_public=data.is_public,
+        clerk_creator_id=user_id,
+    )
+    db.add(char)
+    db.commit()
+    db.refresh(char)
+    return char
+
+
+@router.post("/import", response_model=CharacterResponse, status_code=201)
+async def import_character(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Import a SillyTavern / Janitor character card into ClawFans.
+
+    Accepts both the v2 wrapper shape ({"spec": ..., "data": {...}}) and the
+    flat shape. Requires auth — the caller becomes the creator. The imported
+    character is public and filed under the "Imported" category.
+    """
+    user_id = await get_current_user_id(request)
+    require_auth(user_id)
+
+    body = await request.json()
+    if not isinstance(body, dict):
+        raise HTTPException(status_code=400, detail="Invalid character card")
+
+    # Normalize: prefer a top-level `data` dict (v2 wrapper), else the body.
+    card = body.get("data") if isinstance(body.get("data"), dict) else body
+
+    try:
+        fields = card_to_character_fields(card)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    char = Character(
+        name=fields["name"],
+        description=fields["description"],
+        system_prompt=fields["system_prompt"],
+        greeting=fields["greeting"],
+        is_public=True,
+        category="Imported",
         clerk_creator_id=user_id,
     )
     db.add(char)

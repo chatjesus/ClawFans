@@ -25,6 +25,9 @@ import { AudioPlayer } from "@/components/AudioPlayer";
 // Lazy-load the story event modal; it's only rendered when an event triggers.
 const EventModal = dynamic(() => import("@/components/EventModal"), { ssr: false });
 
+// Lazy-load the memory panel; only rendered when the drawer is open.
+const MemoryPanel = dynamic(() => import("@/components/MemoryPanel"), { ssr: false });
+
 interface Props {
   characterId: number;
 }
@@ -132,6 +135,7 @@ export default function ChatInterface({ characterId }: Props) {
   const { locale } = useI18n();
   const { getToken, isSignedIn } = useAuth();
   const [memoryBannerDismissed, setMemoryBannerDismissed] = useState(false);
+  const [showMemory, setShowMemory] = useState(false);
   const [character, setCharacter] = useState<Character | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
@@ -530,6 +534,19 @@ export default function ChatInterface({ characterId }: Props) {
             </svg>
             {ttsEnabled ? "自动朗读 ●" : "自动朗读"}
           </button>
+          {/* Memory drawer toggle */}
+          <button
+            onClick={() => setShowMemory((v) => !v)}
+            title="她记得你什么"
+            className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] transition-all border ${
+              showMemory
+                ? "border-rose-400/40 bg-rose-500/15 text-rose-400"
+                : "border-transparent text-gray-400 hover:text-rose-400 hover:border-rose-400/30"
+            }`}
+          >
+            <span>🧠</span>
+            记忆
+          </button>
         </div>
 
         <p className="text-[11px] mt-1 max-w-xs text-center px-4" style={{ color: "var(--muted)" }}>
@@ -741,6 +758,39 @@ export default function ChatInterface({ characterId }: Props) {
           <div ref={messagesEndRef} />
         </div>
       </div>
+
+      {/* ── Memory drawer ── */}
+      {showMemory && (
+        <div className="fixed inset-0 z-50 flex justify-end" onClick={() => setShowMemory(false)}>
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+          <div
+            className="relative w-80 max-w-[85vw] h-full overflow-y-auto border-l flex flex-col"
+            style={{ background: "var(--background)", borderColor: "var(--card-border)", animation: "fadeInDown 0.25s ease" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              className="flex items-center justify-between px-4 py-3 border-b flex-shrink-0"
+              style={{ borderColor: "var(--card-border)" }}
+            >
+              <div className="flex items-center gap-2">
+                <span className="text-base">🧠</span>
+                <h3 className="text-sm font-semibold">她记得你什么</h3>
+              </div>
+              <button
+                onClick={() => setShowMemory(false)}
+                className="w-7 h-7 rounded-full flex items-center justify-center transition-all hover:bg-white/10"
+                style={{ color: "var(--muted)" }}
+                title="关闭"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto px-4 py-4">
+              <MemoryPanel characterId={character.id} />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Lightbox overlay ── */}
       {lightboxUrl && (

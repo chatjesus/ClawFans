@@ -3,7 +3,7 @@
 import { useState, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@clerk/nextjs";
-import { createCharacter } from "@/lib/api";
+import { createCharacter, importCharacterCard } from "@/lib/api";
 import { useT } from "@/contexts/I18nContext";
 
 const CATEGORIES = [
@@ -138,6 +138,44 @@ export default function CreatePage() {
     avatar_url: "", tags: "", category: "Featured", is_public: true,
   });
 
+  // ── Character card import ──
+  const [cardText, setCardText] = useState("");
+  const [importing, setImporting] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
+  const cardFileRef = useRef<HTMLInputElement>(null);
+
+  const handleCardFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    try {
+      const text = await f.text();
+      setCardText(text);
+      setImportError(null);
+    } catch {
+      setImportError("无法读取文件 / Could not read file");
+    }
+  };
+
+  const handleImport = async () => {
+    if (!cardText.trim()) { setImportError("请粘贴角色卡 JSON / Paste card JSON"); return; }
+    let parsed: object;
+    try {
+      parsed = JSON.parse(cardText);
+    } catch {
+      setImportError("无效的 JSON / Invalid JSON");
+      return;
+    }
+    setImporting(true); setImportError(null);
+    try {
+      const token = await getToken();
+      const char = await importCharacterCard(parsed, token);
+      router.push("/chat/" + char.id);
+    } catch (err) {
+      setImportError(err instanceof Error ? err.message : "导入失败 / Import failed");
+      setImporting(false);
+    }
+  };
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
@@ -165,6 +203,50 @@ export default function CreatePage() {
         <p className="text-sm mb-8" style={{ color: "var(--muted)" }}>Design your fantasy. Use {"{{char}}"} and {"{{user}}"} as placeholders.</p>
 
         {error && <div className="rounded-lg px-4 py-3 text-sm mb-6" style={{ background: "rgba(239,68,68,0.1)", color: "#f87171" }}>{error}</div>}
+
+        {/* ── Import character card ── */}
+        <div className="rounded-2xl border p-4 mb-8" style={{ background: "var(--card-bg)", borderColor: "var(--card-border)" }}>
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-base">📥</span>
+            <h2 className="text-sm font-semibold" style={{ color: "var(--text)" }}>导入角色卡 / Import card</h2>
+          </div>
+          <p className="text-[11px] mb-3" style={{ color: "var(--muted)" }}>
+            粘贴角色卡 JSON，或上传 .json 文件 / Paste a character card JSON, or upload a .json file.
+          </p>
+
+          {importError && (
+            <div className="rounded-lg px-3 py-2 text-xs mb-3" style={{ background: "rgba(239,68,68,0.1)", color: "#f87171" }}>{importError}</div>
+          )}
+
+          <textarea
+            value={cardText}
+            onChange={(e) => setCardText(e.target.value)}
+            placeholder={'{ "name": "...", "description": "...", "personality": "...", "scenario": "...", "first_mes": "...", "mes_example": "..." }'}
+            rows={5}
+            className={inputClass + " resize-none font-mono text-xs leading-relaxed"}
+            style={inputStyle}
+          />
+
+          <div className="flex items-center gap-3 mt-3">
+            <button
+              type="button"
+              onClick={() => cardFileRef.current?.click()}
+              className="text-xs px-3 py-2 rounded-xl transition-all hover:bg-white/5"
+              style={{ color: "var(--muted)", border: "1px solid var(--card-border)" }}
+            >
+              选择文件 / Choose .json
+            </button>
+            <input ref={cardFileRef} type="file" accept=".json,application/json" className="hidden" onChange={handleCardFile} />
+            <button
+              type="button"
+              onClick={handleImport}
+              disabled={importing}
+              className="accent-btn ml-auto px-5 py-2 rounded-xl font-medium text-white text-xs disabled:opacity-50"
+            >
+              {importing ? "导入中… / Importing…" : "导入 / Import"}
+            </button>
+          </div>
+        </div>
 
         <form onSubmit={handleSubmit} className="space-y-5">
           <div>

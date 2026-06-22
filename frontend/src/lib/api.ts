@@ -97,6 +97,14 @@ export interface HealthStatus {
   models: string[];
 }
 
+export interface Memory {
+  id: number;
+  key: string;
+  value: string;
+  confidence: number;
+  created_at: string;
+}
+
 // ── API Functions ──
 
 export async function fetchHealth(): Promise<HealthStatus> {
@@ -351,5 +359,52 @@ export async function sendMessageStream(
 export function resolveImageUrl(url: string): string {
   if (url.startsWith("http")) return url;
   return `${API_BASE}${url}`;
+}
+
+// ── Character Card Import ──
+
+/**
+ * Import a character card JSON (either {spec, data:{...}} or flat
+ * {name, description, personality, scenario, first_mes, mes_example}).
+ * Returns the created Character (has .id). Auth required.
+ */
+export async function importCharacterCard(
+  card: object,
+  token?: string | null,
+): Promise<Character> {
+  const res = await fetch(`${API_BASE}/api/characters/import`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: JSON.stringify(card),
+  });
+  if (res.status === 401) throw new Error("Please sign in to import a character");
+  if (!res.ok) throw new Error("Failed to import character card");
+  return res.json();
+}
+
+// ── Memory ("她记得你什么") ──
+
+export async function fetchMemories(
+  characterId: number,
+  token?: string | null,
+): Promise<Memory[]> {
+  const res = await fetch(`${API_BASE}/api/memory?character_id=${characterId}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (res.status === 401) throw new Error("Please sign in");
+  if (!res.ok) throw new Error("Failed to fetch memories");
+  return res.json();
+}
+
+export async function deleteMemory(
+  id: number,
+  token?: string | null,
+): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/memory/${id}`, {
+    method: "DELETE",
+    headers: authHeaders(token),
+  });
+  if (res.status === 401) throw new Error("Please sign in");
+  if (!res.ok && res.status !== 404) throw new Error(`Delete failed: ${res.status}`);
 }
 
