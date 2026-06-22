@@ -133,6 +133,19 @@ def _strip_roleplay_markers(text: str) -> str:
     return text
 
 
+async def _mimo_bytes(clean_text: str) -> Optional[bytes]:
+    """MiMo cloud TTS bytes when opted in (MIMO_API_KEY + TTS_ENGINE=mimo),
+    else None so the caller falls back to the local engine."""
+    if not (os.getenv("MIMO_API_KEY") and os.getenv("TTS_ENGINE", "").lower() == "mimo"):
+        return None
+    try:
+        from services.mimo_tts import synthesize_mimo
+        return await synthesize_mimo(clean_text)
+    except Exception as e:
+        logger.warning(f"MiMo TTS error, falling back to local: {e}")
+        return None
+
+
 async def synthesize_speech(
     text: str,
     voice_id: str = "",
@@ -150,6 +163,15 @@ async def synthesize_speech(
 
     if len(clean_text) > max_chars:
         clean_text = clean_text[:max_chars]
+
+    # MiMo cloud TTS (opt-in via MIMO_API_KEY + TTS_ENGINE=mimo). Falls through
+    # to the local engine if MiMo yields nothing (e.g. content moderation).
+    mimo_audio = await _mimo_bytes(clean_text)
+    if mimo_audio:
+        fname = f"tts_{uuid.uuid4().hex[:12]}.wav"
+        (VOICE_DIR / fname).write_bytes(mimo_audio)
+        logger.info(f"MiMo TTS audio saved: {fname} ({len(clean_text)} chars)")
+        return f"/uploads/voice/{fname}"
 
     if os.getenv("ALLOW_ONLINE_MODELS") != "1":
         audio_bytes = await _local_tts_bytes(clean_text, tags, description, voice_id)
@@ -238,6 +260,11 @@ async def synthesize_speech_streaming(
 
     if len(clean_text) > max_chars:
         clean_text = clean_text[:max_chars]
+
+    # MiMo cloud TTS (opt-in), else local engine.
+    mimo_audio = await _mimo_bytes(clean_text)
+    if mimo_audio:
+        return mimo_audio
 
     if os.getenv("ALLOW_ONLINE_MODELS") != "1":
         return await _local_tts_bytes(clean_text, tags, description, voice_id)
