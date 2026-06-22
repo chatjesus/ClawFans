@@ -14,7 +14,10 @@ Two seams under test:
 """
 from datetime import datetime, timedelta
 
+import pytest
+
 from models.database import Character, Conversation, Message
+from services.proactive_greeting import generate_return_greeting
 
 
 # ── Pure gating logic ─────────────────────────────────────────────────────────
@@ -82,6 +85,57 @@ def test_checkin_persists_greeting_after_absence(client, db, monkeypatch):
             {"c": conv_id},
         ).scalar()
     assert n == 1
+
+
+# ── NSFW alignment: the greeting tone must scale with intimacy ────────────────
+
+def _seed_conv_with_old_message(db, intimacy: int):
+    char = Character(name="Luna", system_prompt="p", greeting="hi", category="Featured")
+    db.add(char)
+    db.commit()
+    db.refresh(char)
+    conv = Conversation(character_id=char.id, title="t", intimacy_level=intimacy)
+    db.add(conv)
+    db.commit()
+    db.refresh(conv)
+    old = datetime.utcnow() - timedelta(hours=10)
+    db.add(Message(conversation_id=conv.id, role="user", content="晚安", created_at=old))
+    db.commit()
+    return char, conv
+
+
+@pytest.mark.asyncio
+async def test_greeting_prompt_is_bold_at_high_intimacy(db, monkeypatch):
+    """At the top intimacy tier the greeting prompt carries that tier's
+    (explicit) framing, so an adult companion can open seductively — this is
+    the whole point of an NSFW product."""
+    captured = {}
+
+    async def cap(messages, **_k):
+        captured["m"] = messages
+        return "*靠近你* 想死你了……"
+
+    monkeypatch.setattr("services.proactive_greeting.chat_completion", cap)
+    char, conv = _seed_conv_with_old_message(db, intimacy=85)  # 亲密无间 / Intimate
+
+    await generate_return_greeting(char, conv, db)
+    system_prompt = captured["m"][0]["content"]
+    assert "亲密无间" in system_prompt, "greeting prompt must reflect the Intimate tier"
+
+
+@pytest.mark.asyncio
+async def test_greeting_prompt_is_reserved_for_stranger(db, monkeypatch):
+    captured = {}
+
+    async def cap(messages, **_k):
+        captured["m"] = messages
+        return "*点头* 你来了"
+
+    monkeypatch.setattr("services.proactive_greeting.chat_completion", cap)
+    char, conv = _seed_conv_with_old_message(db, intimacy=0)  # 陌生 / Stranger
+
+    await generate_return_greeting(char, conv, db)
+    assert "陌生" in captured["m"][0]["content"]
 
 
 def test_checkin_noop_when_recently_active(client, db):
