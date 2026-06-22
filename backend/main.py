@@ -551,6 +551,18 @@ from api.voice import router as voice_router
 app.include_router(voice_router)
 
 
+@app.get("/")
+async def root():
+    """Friendly root — this port is the API backend, not the web UI.
+    Avoids a bare {"detail":"Not Found"} when someone opens :8000 directly."""
+    return {
+        "service": "ClawFans API",
+        "ui": "The web app runs on the frontend (default http://localhost:3000)",
+        "health": "/api/health",
+        "docs": "/docs",
+    }
+
+
 @app.get("/api/health")
 async def health_check():
     """Health check endpoint."""
