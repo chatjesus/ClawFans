@@ -42,6 +42,13 @@ def _max_tokens() -> int:
         return 800
 
 
+def _keep_alive() -> str:
+    """How long Ollama keeps the model resident after a request. Default 30m so
+    a big model isn't evicted between turns (reloading ~18GB looks like a freeze).
+    Set OLLAMA_KEEP_ALIVE=-1 to keep it loaded forever."""
+    return os.environ.get("OLLAMA_KEEP_ALIVE", "30m")
+
+
 async def chat_completion_stream(
     messages: list[dict],
     model: str | None = None,
@@ -54,6 +61,7 @@ async def chat_completion_stream(
         "model": model,
         "messages": messages,
         "stream": True,
+        "keep_alive": _keep_alive(),
         "options": {
             "temperature": temperature,
             "num_predict": max_tokens if max_tokens is not None else _max_tokens(),
@@ -110,6 +118,7 @@ async def chat_completion(
         "model": model,
         "messages": messages,
         "stream": False,
+        "keep_alive": _keep_alive(),
         "options": {
             "temperature": temperature,
             "num_predict": max_tokens if max_tokens is not None else _max_tokens(),
