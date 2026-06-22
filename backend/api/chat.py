@@ -463,14 +463,25 @@ async def checkin(
     if not char:
         raise HTTPException(status_code=404, detail="Character not found")
 
+    # Daily check-in reward (reciprocity/habit loop): showing up deepens the bond.
+    from datetime import date
+    from services.checkin import grant_daily_checkin
+    checkin_reward = grant_daily_checkin(conv, db, date.today().isoformat())
+
     from services.proactive_greeting import generate_return_greeting
     greeting = await generate_return_greeting(char, conv, db)
-    if not greeting:
-        return {"greeting": None}
 
-    msg = Message(conversation_id=conv.id, role="assistant", content=greeting)
-    db.add(msg)
-    db.commit()
-    db.refresh(msg)
-    return {"greeting": greeting, "message_id": msg.id}
+    resp = {
+        "greeting": None,
+        "checkin_reward": checkin_reward,
+        "intimacy_level": conv.intimacy_level or 0,
+    }
+    if greeting:
+        msg = Message(conversation_id=conv.id, role="assistant", content=greeting)
+        db.add(msg)
+        db.commit()
+        db.refresh(msg)
+        resp["greeting"] = greeting
+        resp["message_id"] = msg.id
+    return resp
 

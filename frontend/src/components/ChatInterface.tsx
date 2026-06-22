@@ -148,6 +148,7 @@ export default function ChatInterface({ characterId }: Props) {
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const [intimacyLevel, setIntimacyLevel] = useState(0);
   const [intimacyToast, setIntimacyToast] = useState<IntimacyUpdate | null>(null);
+  const [checkinToast, setCheckinToast] = useState<number | null>(null);
   const [streakDays, setStreakDays] = useState(0);
   const [streakToast, setStreakToast] = useState<StreakUpdate | null>(null);
   const [toolExecuting, setToolExecuting] = useState<ToolExecuting | null>(null);
@@ -229,6 +230,12 @@ export default function ChatInterface({ characterId }: Props) {
                 created_at: new Date().toISOString(),
               },
             ]);
+          }
+          // Daily check-in reward — reciprocity payoff: she's glad you came back.
+          if (ci?.checkin_reward && ci.checkin_reward > 0) {
+            if (typeof ci.intimacy_level === "number") setIntimacyLevel(ci.intimacy_level);
+            setCheckinToast(ci.checkin_reward);
+            setTimeout(() => setCheckinToast(null), 4000);
           }
         }
       } catch (err) {
@@ -466,6 +473,16 @@ export default function ChatInterface({ characterId }: Props) {
           }}
           onDismiss={() => setStoryEvent(null)}
         />
+      )}
+
+      {/* ── Daily Check-in Reward Toast ── */}
+      {checkinToast && (
+        <div
+          className="fixed top-4 left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-2xl text-white text-sm font-medium shadow-xl animate-bounce"
+          style={{ background: "linear-gradient(135deg, #f472b6, #e8607a)" }}
+        >
+          💞 {character?.name} 很开心你回来了 · 亲密度 +{checkinToast}
+        </div>
       )}
 
       {/* ── Intimacy Unlock Toast ── */}

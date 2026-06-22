@@ -198,7 +198,7 @@ export async function fetchConversation(
 export async function checkinConversation(
   id: number,
   token?: string | null,
-): Promise<{ greeting: string | null; message_id?: number }> {
+): Promise<{ greeting: string | null; message_id?: number; checkin_reward?: number; intimacy_level?: number }> {
   try {
     const res = await fetch(`${API_BASE}/api/chat/conversations/${id}/checkin`, {
       method: "POST",
