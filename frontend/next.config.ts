@@ -19,6 +19,13 @@ const nextConfig: NextConfig = {
         source: "/api/:path*",
         destination: `${backendUrl}/api/:path*`,
       },
+      {
+        // Backend serves generated images / scenes / voice under /uploads.
+        // Proxy them too so media loads same-origin through the tunnel domain
+        // (external users can't reach the operator's localhost directly).
+        source: "/uploads/:path*",
+        destination: `${backendUrl}/uploads/:path*`,
+      },
     ];
   },
 };

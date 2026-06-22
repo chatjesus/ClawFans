@@ -385,7 +385,7 @@ export default function ChatInterface({ characterId }: Props) {
       (voiceUrl) => {
         // Auto-play voice from SSE if TTS is enabled
         if (ttsEnabled && voiceUrl) {
-          const fullUrl = voiceUrl.startsWith("http") ? voiceUrl : `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}${voiceUrl}`;
+          const fullUrl = voiceUrl.startsWith("http") ? voiceUrl : `${process.env.NEXT_PUBLIC_API_URL || ""}${voiceUrl}`;
           const audio = new Audio(fullUrl);
           audio.play().catch(() => {});
         }

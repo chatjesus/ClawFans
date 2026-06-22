@@ -7,7 +7,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+// Empty = relative same-origin URLs (proxied to the backend by next.config),
+// so audio loads through the tunnel domain for external users.
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
 
 type State = "idle" | "loading" | "playing" | "error";
 

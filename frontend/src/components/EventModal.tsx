@@ -37,8 +37,8 @@ const EVENT_TYPE_ICON: Record<string, string> = {
   special: "💫",
 };
 
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+// Relative same-origin (proxied) so event images load through the tunnel.
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
 
 export default function EventModal({
   event,
