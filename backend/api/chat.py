@@ -442,3 +442,35 @@ async def get_messages(
     )
     return messages
 
+
+@router.post("/conversations/{conversation_id}/checkin")
+async def checkin(
+    conversation_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Called when the user opens a chat. If they've been away long enough,
+    the character proactively reaches out ('missed you'); the greeting is
+    persisted as an assistant message and returned. Otherwise {greeting: null}.
+    """
+    conv = db.query(Conversation).filter(Conversation.id == conversation_id).first()
+    if not conv:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    user_id = await get_current_user_id(request)
+    _ensure_conv_visible(conv, user_id)
+
+    char = db.query(Character).filter(Character.id == conv.character_id).first()
+    if not char:
+        raise HTTPException(status_code=404, detail="Character not found")
+
+    from services.proactive_greeting import generate_return_greeting
+    greeting = await generate_return_greeting(char, conv, db)
+    if not greeting:
+        return {"greeting": None}
+
+    msg = Message(conversation_id=conv.id, role="assistant", content=greeting)
+    db.add(msg)
+    db.commit()
+    db.refresh(msg)
+    return {"greeting": greeting, "message_id": msg.id}
+

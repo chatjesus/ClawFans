@@ -172,6 +172,27 @@ export async function fetchConversation(
   return res.json();
 }
 
+/**
+ * Tell the backend the user just opened this chat. If they've been away long
+ * enough, the character proactively reaches out and the greeting is returned
+ * (and persisted server-side). Returns { greeting: null } otherwise.
+ */
+export async function checkinConversation(
+  id: number,
+  token?: string | null,
+): Promise<{ greeting: string | null; message_id?: number }> {
+  try {
+    const res = await fetch(`${API_BASE}/api/chat/conversations/${id}/checkin`, {
+      method: "POST",
+      headers: authHeaders(token),
+    });
+    if (!res.ok) return { greeting: null };
+    return res.json();
+  } catch {
+    return { greeting: null };
+  }
+}
+
 export async function fetchConversations(
   characterId?: number,
   token?: string | null,

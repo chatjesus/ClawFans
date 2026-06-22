@@ -9,6 +9,7 @@ import {
   fetchConversations,
   createConversation,
   fetchCharacter,
+  checkinConversation,
   resolveImageUrl,
   type ChatMessage,
   type ChatImage,
@@ -150,6 +151,7 @@ export default function ChatInterface({ characterId }: Props) {
   const [storyEvent, setStoryEvent] = useState<import("@/components/EventModal").StoryEventData | null>(null);
   const [ttsEnabled, setTtsEnabled] = useState(false);
   const lastAiMsgIdRef = useRef<number | undefined>(undefined);
+  const checkedInRef = useRef<number | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const streamingTextRef = useRef("");
@@ -206,6 +208,25 @@ export default function ChatInterface({ characterId }: Props) {
         }
         setIntimacyLevel(detail.intimacy_level ?? 0);
         setStreakDays(detail.streak_days ?? 0);
+
+        // Proactive return greeting: if the user has been away a while, the
+        // character opens the conversation ("missed you"). Guarded so it fires
+        // at most once per conversation load (React strict-mode double-invoke).
+        if (detail.messages.length > 0 && checkedInRef.current !== convId) {
+          checkedInRef.current = convId;
+          const ci = await checkinConversation(convId, token);
+          if (ci?.greeting) {
+            setMessages((prev) => [
+              ...prev,
+              {
+                id: uniqueId(),
+                role: "assistant",
+                content: ci.greeting as string,
+                created_at: new Date().toISOString(),
+              },
+            ]);
+          }
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : t.chat.initFailed);
       }
