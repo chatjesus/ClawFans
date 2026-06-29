@@ -49,6 +49,16 @@ def _keep_alive() -> str:
     return os.environ.get("OLLAMA_KEEP_ALIVE", "30m")
 
 
+def _repeat_penalty() -> float:
+    """Penalize token repetition. Default 1.15 — without it the model echoed
+    the user's last line and reused the same closing question. Tune via
+    OLLAMA_REPEAT_PENALTY."""
+    try:
+        return float(os.environ.get("OLLAMA_REPEAT_PENALTY", "1.15"))
+    except ValueError:
+        return 1.15
+
+
 async def chat_completion_stream(
     messages: list[dict],
     model: str | None = None,
@@ -66,6 +76,7 @@ async def chat_completion_stream(
             "temperature": temperature,
             "num_predict": max_tokens if max_tokens is not None else _max_tokens(),
             "num_ctx": _num_ctx(),
+            "repeat_penalty": _repeat_penalty(),
         },
     }
 
@@ -123,6 +134,7 @@ async def chat_completion(
             "temperature": temperature,
             "num_predict": max_tokens if max_tokens is not None else _max_tokens(),
             "num_ctx": _num_ctx(),
+            "repeat_penalty": _repeat_penalty(),
         },
     }
 

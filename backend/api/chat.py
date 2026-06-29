@@ -59,6 +59,8 @@ async def create_conversation(
         character_id=data.character_id,
         title=f"Chat with {char.name}",
         clerk_user_id=None if user_id == "anonymous" else user_id,
+        # Start hot if the character is an "established" persona (core-user fast path)
+        intimacy_level=char.starting_intimacy or 0,
     )
     db.add(conv)
     db.commit()
@@ -92,6 +94,11 @@ async def list_conversations(
             (Conversation.clerk_user_id == user_id) |
             (Conversation.clerk_user_id == None)  # noqa: E711
         )
+    else:
+        # Anonymous users see ONLY anonymous conversations — never a logged-in
+        # user's, which they can't open anyway (visibility check 403s) and which
+        # would leak history + get mis-reused as "most recent".
+        query = query.filter(Conversation.clerk_user_id == None)  # noqa: E711
     if character_id:
         query = query.filter(Conversation.character_id == character_id)
     convs = query.order_by(Conversation.updated_at.desc()).offset(skip).limit(limit).all()
@@ -315,6 +322,7 @@ async def send_message(
                 instant, generated = await process_reply_images(
                     result.full_reply, conv.id, char.id, char.avatar_url, db,
                     intimacy_level=intimacy_level,
+                    explicit_unlock_override=char.explicit_unlock_intimacy,
                 )
                 for img in instant:
                     yield f"data: {json.dumps({'image': img})}\n\n"
@@ -397,13 +405,18 @@ async def send_message(
             # ── TTS Voice Generation (non-blocking) ──────────────────────────
             try:
                 from services.voice_service import synthesize_speech
+                from services.ops_config import is_text_explicit_allowed
                 display_text = result.full_reply or ""
                 if display_text.strip():
+                    # Explicit lines skip cloud MiMo (it moderates them) → local TTS,
+                    # so the voice matches the explicit text instead of degrading.
                     audio_url = await synthesize_speech(
                         text=display_text,
                         voice_id=char.voice_id or "",
                         tags=char.tags or "",
                         description=char.description or "",
+                        explicit=is_text_explicit_allowed(
+                            db, intimacy_level, char.explicit_unlock_intimacy),
                     )
                     if audio_url:
                         yield f"data: {json.dumps({'voice': {'url': audio_url}})}\n\n"

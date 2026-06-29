@@ -9,6 +9,7 @@ Event Service — story event triggering, checking, and completion.
 """
 import json
 import logging
+import re
 from datetime import datetime, date
 from sqlalchemy.orm import Session
 
@@ -18,6 +19,27 @@ from models.database import (
 from services.llm_service import chat_completion
 
 logger = logging.getLogger(__name__)
+
+# A canned story-event modal popping up mid-intimate-scene feels disconnected
+# from the topic. When the user's latest message signals a physical/sexual
+# moment, defer events to a later lull instead of interrupting the scene.
+_INTIMATE_SCENE_RE = re.compile(
+    r"(亲|抱|摸|吻|脱|裸|胸|腰|腿|臀|床|睡|干你|插|主人|宝贝|想要你|要你|内衣|内裤|"
+    r"身体|舔|湿|硬|做爱|上我|口|高潮|爱抚|kiss|hug|touch|fuck|naked|nude|sex|undress|moan)",
+    re.IGNORECASE,
+)
+
+
+def _in_intimate_scene(conversation_id: int, db: Session) -> bool:
+    """True if the latest user message signals an active intimate/sexual scene."""
+    from models.database import Message
+    last_user = (
+        db.query(Message)
+        .filter(Message.conversation_id == conversation_id, Message.role == "user")
+        .order_by(Message.created_at.desc())
+        .first()
+    )
+    return bool(last_user and _INTIMATE_SCENE_RE.search(last_user.content or ""))
 
 
 # ── Trigger Evaluation ────────────────────────────────────────────────────────
@@ -74,6 +96,11 @@ def check_events(
         .first()
     )
     if active:
+        return None
+
+    # Don't interrupt an active intimate/explicit scene with a canned event —
+    # it reads as disconnected from what the user is doing. Defer to a lull.
+    if _in_intimate_scene(conversation.id, db):
         return None
 
     # Count messages for this conversation

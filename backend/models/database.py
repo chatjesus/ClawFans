@@ -76,6 +76,14 @@ class Character(Base):
     sort_weight = Column(Integer, default=0)
     # TTS voice ID (edge-tts voice name). Empty = auto-select from tags+description.
     voice_id = Column(String(100), default="")
+    # Core-user (Replika/CAI refugee) tuning. starting_intimacy seeds a new
+    # conversation's intimacy_level — an "established lover" character can start
+    # hot (e.g. 75) so the user skips the slow-burn grind. Default 0 = stranger.
+    starting_intimacy = Column(Integer, default=0)
+    # Per-character override of the global text-explicit gate
+    # (ops_config.text_explicit_unlock_intimacy). NULL = use the global default;
+    # a no-inhibition character can set 0 to be explicit from the start.
+    explicit_unlock_intimacy = Column(Integer, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -123,6 +131,13 @@ class Conversation(Base):
     last_active_at = Column(DateTime, default=datetime.utcnow)   # last user activity (inactivity timer)
     last_proactive_at = Column(DateTime, nullable=True)          # last proactive message we staged
     proactive_enabled = Column(Boolean, default=True)           # per-conversation opt-out
+    # Slow-burn unlock moment: when a turn crosses into a new intimacy tier, the
+    # tier's threshold is parked here so the NEXT reply celebrates it in-fiction,
+    # then it's cleared (one-shot). NULL = nothing pending.
+    pending_unlock_tier = Column(Integer, nullable=True)
+    # Persisted emotional state — evolves from interactions and carries across
+    # turns (a real person's mood, not a per-turn clock re-roll).
+    current_mood = Column(String(80), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

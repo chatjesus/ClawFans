@@ -55,9 +55,16 @@ const IMG_TAG_RE = /\*?\s*\[IMG:\s*[^\]]+\]\s*\*?/g;
 const SCENE_TAG_RE = /\*?\s*\[SCENE:\s*\d+\]\s*\*?/g;
 // u flag required for supplementary Unicode (emoji are > U+FFFF, surrogate pairs without u flag)
 const EMOJI_IMG_RE = /[🖼📸🌄🎨]\s*[^\n\[]{15,200}/gu;
+// Weaker models leak the prompt's internal Hook labels ("SECRET TEASE:", etc.)
+// into the reply — strip them so the user never sees scaffolding. Optional
+// surrounding */_ markdown and half/full-width colon are consumed.
+const HOOK_LABEL_RE = /[*_]{0,2}\s*(SECRET TEASE|MEMORY CALLBACK|EMOTIONAL CRACK|PROGRESS HINT|INTERRUPTED CONFESSION|CLIFFHANGER|QUESTION|HOOK|钩子)\s*[:：]\s*[*_]{0,2}\s*/gi;
+// Tool calls are executed server-side and shown via the tool-result UI — the
+// raw ```tool {...}``` block must never appear as message text.
+const TOOL_BLOCK_RE = /```tool[\s\S]*?```/g;
 
 function stripImgTags(text: string): string {
-  return text.replace(IMG_TAG_RE, "").replace(SCENE_TAG_RE, "").replace(EMOJI_IMG_RE, "").trim();
+  return text.replace(IMG_TAG_RE, "").replace(SCENE_TAG_RE, "").replace(EMOJI_IMG_RE, "").replace(TOOL_BLOCK_RE, "").replace(HOOK_LABEL_RE, "").trim();
 }
 
 const MD_IMG_RE = /!\[([^\]]*)\]\(([^)]+)\)/g;
@@ -221,8 +228,10 @@ export default function ChatInterface({ characterId }: Props) {
 
         let convId: number;
         if (existing.length > 0) {
-          // Reuse the most recent conversation
-          convId = existing[existing.length - 1].id;
+          // Reuse the most recent conversation. The API returns them ordered
+          // by updated_at DESC, so the most recent is existing[0] (NOT [-1],
+          // which is the oldest and may be a stale/other-user conversation).
+          convId = existing[0].id;
         } else {
           const conv = await createConversation(characterId, token);
           convId = conv.id;

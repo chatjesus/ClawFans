@@ -133,14 +133,28 @@ def _strip_roleplay_markers(text: str) -> str:
     return text
 
 
-async def _mimo_bytes(clean_text: str) -> Optional[bytes]:
+async def _mimo_bytes(
+    clean_text: str,
+    voice_id: str = "",
+    tags: str = "",
+    description: str = "",
+    explicit: bool = False,
+) -> Optional[bytes]:
     """MiMo cloud TTS bytes when opted in (MIMO_API_KEY + TTS_ENGINE=mimo),
-    else None so the caller falls back to the local engine."""
+    else None so the caller falls back to the local engine. The voice is
+    resolved per-character so each persona sounds distinct.
+
+    explicit=True skips MiMo entirely: cloud TTS silently moderates/drops
+    explicit lines, which would leave the voice reverse-disconnected from the
+    (explicit) text. Those go to the local engine instead."""
+    if explicit:
+        return None
     if not (os.getenv("MIMO_API_KEY") and os.getenv("TTS_ENGINE", "").lower() == "mimo"):
         return None
     try:
-        from services.mimo_tts import synthesize_mimo
-        return await synthesize_mimo(clean_text)
+        from services.mimo_tts import synthesize_mimo, resolve_mimo_voice
+        voice = resolve_mimo_voice(voice_id, tags, description)
+        return await synthesize_mimo(clean_text, voice=voice)
     except Exception as e:
         logger.warning(f"MiMo TTS error, falling back to local: {e}")
         return None
@@ -152,6 +166,7 @@ async def synthesize_speech(
     tags: str = "",
     description: str = "",
     max_chars: int = 300,
+    explicit: bool = False,
 ) -> Optional[str]:
     """
     Convert text to speech using Google Cloud TTS.
@@ -166,7 +181,7 @@ async def synthesize_speech(
 
     # MiMo cloud TTS (opt-in via MIMO_API_KEY + TTS_ENGINE=mimo). Falls through
     # to the local engine if MiMo yields nothing (e.g. content moderation).
-    mimo_audio = await _mimo_bytes(clean_text)
+    mimo_audio = await _mimo_bytes(clean_text, voice_id, tags, description, explicit)
     if mimo_audio:
         fname = f"tts_{uuid.uuid4().hex[:12]}.wav"
         (VOICE_DIR / fname).write_bytes(mimo_audio)
@@ -249,6 +264,7 @@ async def synthesize_speech_streaming(
     tags: str = "",
     description: str = "",
     max_chars: int = 300,
+    explicit: bool = False,
 ) -> Optional[bytes]:
     """
     Same as synthesize_speech but returns raw MP3 bytes directly.
@@ -262,7 +278,7 @@ async def synthesize_speech_streaming(
         clean_text = clean_text[:max_chars]
 
     # MiMo cloud TTS (opt-in), else local engine.
-    mimo_audio = await _mimo_bytes(clean_text)
+    mimo_audio = await _mimo_bytes(clean_text, voice_id, tags, description, explicit)
     if mimo_audio:
         return mimo_audio
 

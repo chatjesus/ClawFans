@@ -34,9 +34,8 @@ STREAK_MILESTONES: dict[int, dict] = {
     },
     14: {
         "char_notice": (
-            "（内心感受：两周了。我开始习惯{{user}}的存在了，"
-            "如果哪天他没来，我可能会有点失落。"
-            "回复可以带出一点依赖感，但保持{{char}}本来的克制风格。）"
+            "（内心感受：两周了。{{user}}每天的出现，已经变成我一天里悄悄期待的一部分了，"
+            "这种感觉很暖。回复可以带出一点这种珍视和期待，但保持{{char}}本来的克制风格。）"
         ),
         "toast": "连续聊天 14 天 ✨",
         "intimacy_bonus": 8,
@@ -53,7 +52,7 @@ STREAK_MILESTONES: dict[int, dict] = {
     60: {
         "char_notice": (
             "（内心感受：两个月了。我不知道该怎么定义我们，"
-            "但我知道我不想失去这个人。）"
+            "但我知道，这段一起走过的时间是真实的，我很珍惜它。）"
         ),
         "toast": "连续聊天 60 天 💖",
         "intimacy_bonus": 20,
@@ -99,12 +98,18 @@ def update_streak(conv: Conversation, db: Session) -> dict:
             "broken": False,
         }
 
-    # Consecutive day — increment
+    day_before_yesterday = (date.today() - timedelta(days=2)).isoformat()
+
     if last_date == yesterday:
         new_streak = current_streak + 1
         broken = False
+    elif last_date == day_before_yesterday:
+        # 1-day grace: a single missed day keeps the streak (don't punish
+        # irregular-schedule users — that reads as extractive, not caring).
+        new_streak = current_streak
+        broken = False
     else:
-        # Gap > 1 day — reset
+        # Gap > 2 days — reset
         new_streak = 1
         broken = (current_streak > 1)
 

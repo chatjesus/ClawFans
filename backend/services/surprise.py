@@ -73,12 +73,19 @@ async def generate_surprise_message(character, conversation, rarity: str, db: Se
 
     level = getattr(conversation, "intimacy_level", 0) or 0
     tone = _RARITY_TONE.get(rarity, "甜蜜")
+    from services.ops_config import is_text_explicit_allowed
+    intimacy_block = build_intimacy_prompt(
+        level,
+        text_explicit_allowed=is_text_explicit_allowed(
+            db, level, getattr(character, "explicit_unlock_intimacy", None)
+        ),
+    )
     prompt = [
         {
             "role": "system",
             "content": (
                 f"你是 {character.name}。{character.system_prompt}\n"
-                f"{build_intimacy_prompt(level)}\n"
+                f"{intimacy_block}\n"
                 f"你刚抽到一个「{rarity}」稀有度的惊喜要送给 {{user}}——主动给他一句惊喜的话，"
                 f"语气：{tone}。越稀有越大胆、越露骨。1-2 句，带一个 *动作*。"
                 f"只输出这句话本身，不要解释。"

@@ -80,7 +80,6 @@ def get_tool_registry() -> ToolRegistry:
 def _register_builtin_tools(registry: ToolRegistry):
     from actions.web_search import web_search_tool
     from actions.schedule_message import schedule_message_tool
-    from actions.generate_image import generate_image_tool
     from actions.food_search import food_search_tool
     from actions.weather import weather_tool
 
@@ -88,4 +87,7 @@ def _register_builtin_tools(registry: ToolRegistry):
     registry.register(food_search_tool)
     registry.register(weather_tool)
     registry.register(schedule_message_tool)
-    registry.register(generate_image_tool)
+    # NOTE: generate_image is intentionally NOT a tool. Inline photos go through
+    # the [IMG:] / [SCENE:] path (process_reply_images), which renders the image
+    # in the chat. A generate_image tool would make the model emit a raw
+    # ```tool``` block that shows as text and never renders an image.

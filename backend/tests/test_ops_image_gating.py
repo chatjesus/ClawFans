@@ -107,7 +107,7 @@ async def test_vip_only_explicit_forces_nsfw_false(db, monkeypatch):
     """vip_only_explicit=True forces non-explicit even above the unlock threshold."""
     calls = _stub_generate_image(monkeypatch)
     char, conv = _seed_conv(db, intimacy=80)
-    set_ops_values(db, {"vip_only_explicit": True})
+    set_ops_values(db, {"vip_only_explicit": True, "monetization_locked": False})
 
     reply = "*leans in* [IMG: a sultry pose]"
     await chat_service.process_reply_images(

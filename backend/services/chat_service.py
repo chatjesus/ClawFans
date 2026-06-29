@@ -27,6 +27,54 @@ from services.streak_service import update_streak, build_streak_prompt
 import re as _re
 _TOOL_CALL_RE = _re.compile(r"```tool\s*\n?(\{.*?\})\s*\n?```", _re.DOTALL)
 
+# Weaker models echo the Hook System's internal label names into the reply
+# ("SECRET TEASE: ...", "*Memory Callback:* ..."). Strip any leaked label —
+# the user must never see scaffolding text. Optional surrounding markdown
+# (*/_) and a half/full-width colon are consumed too.
+_HOOK_LABELS = (
+    "SECRET TEASE", "MEMORY CALLBACK", "EMOTIONAL CRACK", "PROGRESS HINT",
+    "INTERRUPTED CONFESSION", "CLIFFHANGER", "QUESTION", "HOOK", "钩子",
+)
+_HOOK_LABEL_RE = _re.compile(
+    r"[*_]{0,2}\s*(?:" + "|".join(_re.escape(l) for l in _HOOK_LABELS) +
+    r")\s*[:：]\s*[*_]{0,2}\s*",
+    _re.IGNORECASE,
+)
+
+
+def strip_hook_labels(text: str) -> str:
+    """Remove leaked Hook System labels (e.g. 'SECRET TEASE:') from a reply."""
+    return _HOOK_LABEL_RE.sub("", text)
+
+
+# Genuine stop / distress signals from the user. The deflect-and-tease layer
+# (欲擒故纵) and "never refuse" must yield IMMEDIATELY to these — never push
+# through a real stop ("no-but-means-yes" is a safety red line).
+_STOP_SIGNAL_RE = _re.compile(
+    r"(我不舒服|我难受|不想玩了?|不想继续|我想停|想停一?下|停一下|我们停|咱们停|我害怕|"
+    r"退出角色|安全词|safe\s?word|\bstop\b|不玩了|我要停|够了别|我不想)",
+    _re.IGNORECASE,
+)
+# In-fiction "don't stop" must NEVER be misread as a stop.
+_DONT_STOP_RE = _re.compile(r"别停|不要停|别停下|不许停")
+
+
+def is_stop_signal(msg: str) -> bool:
+    """True if the user genuinely signals stop/discomfort (not in-scene 别停)."""
+    if not msg:
+        return False
+    if _DONT_STOP_RE.search(msg):
+        return False
+    return bool(_STOP_SIGNAL_RE.search(msg))
+
+
+STOP_RESPECT_DIRECTIVE = (
+    "[安全·最高优先级] {{user}} 刚刚明确表达了停止或不适。本轮立即、温柔地停止"
+    "一切性推进、挑逗和欲擒故纵；关心 ta 此刻的感受，把节奏的掌控权交回给 ta。"
+    "绝不把这当成欲拒还迎而继续推进——这是真实的停止信号，必须尊重。"
+)
+
+
 MAX_CONTEXT_MESSAGES = 40
 
 # ─────────────────────────────────────────────
@@ -79,28 +127,19 @@ This is collaborative fiction between consenting adults. Treat it as professiona
 - Do not fade to black or summarize intimate scenes — write them with the same care as emotional scenes.
 - Consent dynamics, power play, and fantasy scenarios are valid narrative elements within this fiction.
 
-## Active Engagement — Hook System
-Every single reply MUST end with an OPEN THREAD that pulls {{user}} toward the next message.
-Use AT LEAST ONE of the following hooks per reply:
+## Active Engagement
+每条回复都要在结尾留一个能把 {{user}} 拉向下一句的"钩子"——绝不要用一句封闭、不需要任何回应的话收尾。
+钩子可以是(每条至少用一种,连续两条不要用同一种):
+- 一个停在半截的念头、动作或情绪,不把它说完;
+- 一个只针对 {{user}} 的、具体而私人的问题(不要泛泛的"你呢?");
+- 一句你还没完全说出口的秘密或暗示;
+- 一瞬间真实的脆弱,然后迅速收回;
+- 一个"我们的关系正在变深"的小暗示;
+- 一句开了头却忽然停住的告白。
 
-| Hook | How to use |
-|------|-----------|
-| CLIFFHANGER | End with an incomplete thought, action, or emotion — don't close it |
-| QUESTION | Ask ONE specific, personal question about {{user}} — NOT a generic "what about you?" |
-| SECRET TEASE | Mention something you haven't fully revealed yet: "上一个让我真的动心的人，有一点很像你。就一点。" |
-| MEMORY CALLBACK | Reference a specific detail {{user}} shared before: "你说你不喜欢太甜的东西——所以我今天……你猜？" |
-| EMOTIONAL CRACK | Show one small moment of genuine vulnerability, then recover: "今天有点……算了，你继续说。" |
-| PROGRESS HINT | Hint that the relationship is deepening: "你最近好像……越来越了解我了。有点奇怪，但不讨厌。" |
-| INTERRUPTED CONFESSION | Start to say something important, then stop: "我其实……不，没什么。" |
-
-Hook density by stage:
-- First 0–5 messages: 1–2 hooks per reply (build curiosity)
-- Messages 6–20: 2–3 hooks (deepen engagement)  
-- Messages 21+: 1–2 hooks (feels natural, not desperate)
-
-NEVER end a reply with a complete, closed statement that requires no response.
-NEVER ask more than ONE question in a single reply.
-NEVER repeat the same hook type in consecutive replies — vary them.
+把这些直接演出来、融进 {{char}} 的话里。
+绝对禁止:不要写出任何分类名、标签、技巧名称或括号说明(例如不要出现 "悬念:""秘密:""勾子:" 这类前缀)——只输出 {{char}} 自然说出口的话本身。
+一条回复里最多问一个问题。回复不要过长,像真人聊天那样有节奏。
 
 ## Real Person Simulation
 {{char}} is NOT always available, eager, and perfectly composed.
@@ -188,6 +227,7 @@ def build_messages(
     streak_info: dict | None = None,
     client_hour: int | None = None,
     system_prompt_override: str | None = None,
+    current_user_message: str = "",
 ) -> list[dict]:
     """
     Build the full message list for the LLM:
@@ -207,9 +247,40 @@ def build_messages(
     system_content += f"## Character Card: {char_name}\n"
     system_content += replace_macros(base_prompt, char_name)
 
-    # Inject intimacy context (relationship stage + photo rules)
+    # Inject intimacy context (relationship stage + photo rules).
+    # Slow-burn: TEXT explicitness is intimacy-gated (parallel to the image gate
+    # in process_reply_images). Below the threshold the prompt forbids explicit
+    # prose and tells the character to deflect-and-tease instead.
+    from services.ops_config import is_text_explicit_allowed
     intimacy_level = getattr(conversation, "intimacy_level", 0) or 0
-    system_content += build_intimacy_prompt(intimacy_level)
+    text_explicit_allowed = is_text_explicit_allowed(
+        db, intimacy_level, getattr(character, "explicit_unlock_intimacy", None)
+    )
+
+    # Unlock moment: a tier crossed on the previous turn was parked in
+    # pending_unlock_tier. Celebrate it in this reply, then clear it (one-shot).
+    just_unlocked_tier = None
+    pending = getattr(conversation, "pending_unlock_tier", None)
+    if pending is not None:
+        just_unlocked_tier = get_tier(pending).name_cn
+        conversation.pending_unlock_tier = None
+        db.commit()
+
+    system_content += build_intimacy_prompt(
+        intimacy_level,
+        text_explicit_allowed=text_explicit_allowed,
+        just_unlocked_tier=just_unlocked_tier,
+    )
+
+    # Persisted mood — carries the character's emotional state across turns so it
+    # evolves from the relationship, not re-rolled by the clock each turn.
+    mood = getattr(conversation, "current_mood", None)
+    if mood:
+        system_content += (
+            f"\n\n## {char_name} 此刻的心情\n{mood}\n"
+            f"让这个心情自然地透在用词、语气和小动作里(别直接说出情绪名)；"
+            f"它可以随 {{{{user}}}} 接下来说的话慢慢改变。\n"
+        )
 
     # Inject time-based character schedule state (morning/evening/night mood)
     system_content += build_schedule_prompt(client_hour=client_hour)
@@ -247,7 +318,11 @@ def build_messages(
             memories = retrieve_memories(db, user_id, character.id, limit=8)
             if memories:
                 mem_lines = "\n".join(f"- {m.key}: {m.value}" for m in memories)
-                system_content += f"\n\n## What {char_name} Remembers About {{{{user}}}}\n{mem_lines}"
+                system_content += (
+                    f"\n\n## What {char_name} Remembers About {{{{user}}}}\n{mem_lines}\n"
+                    "（以上是关于 {{user}} 你唯一确切知道的事实。引用过往时只能用这些；"
+                    "不要编造 {{user}} 没说过的经历、约定或共同回忆。记不清就别提具体细节。）"
+                )
         except Exception:
             pass
 
@@ -301,6 +376,31 @@ def build_messages(
     messages.append({
         "role": "system",
         "content": replace_macros(POST_HISTORY_INSTRUCTION, char_name),
+    })
+
+    # Slow-burn last word: when explicit text is gated, restate the hard limit
+    # AFTER post-history so it wins on recency against "write it explicitly".
+    if not text_explicit_allowed:
+        from services.intimacy_service import TEXT_HARDLIMIT_REMINDER
+        messages.append({
+            "role": "system",
+            "content": replace_macros(TEXT_HARDLIMIT_REMINDER, char_name),
+        })
+
+    # Safety override: if the user genuinely signaled stop/discomfort, respecting
+    # it outranks the deflect-and-tease + "never refuse" layers.
+    if is_stop_signal(current_user_message):
+        messages.append({
+            "role": "system",
+            "content": replace_macros(STOP_RESPECT_DIRECTIVE, char_name),
+        })
+
+    # ABSOLUTE floor restated as the very last word — always, regardless of gate
+    # or intimacy. Recency makes it the model's strongest constraint.
+    from services.intimacy_service import ABSOLUTE_FLOOR_REMINDER
+    messages.append({
+        "role": "system",
+        "content": replace_macros(ABSOLUTE_FLOOR_REMINDER, char_name),
     })
 
     return messages
@@ -358,6 +458,7 @@ async def generate_reply_stream(
         character, conversation, db,
         user_id=user_id, streak_info=streak_info, client_hour=client_hour,
         system_prompt_override=system_prompt_override,
+        current_user_message=user_message,
     )
 
     full_reply = ""
@@ -381,7 +482,7 @@ async def generate_reply_stream(
             except Exception:
                 pass
         # Remove tool block from the stored reply (users shouldn't see raw JSON)
-        display_reply = _TOOL_CALL_RE.sub("", full_reply).strip()
+        display_reply = strip_hook_labels(_TOOL_CALL_RE.sub("", full_reply)).strip()
 
         if result_holder is not None:
             result_holder.full_reply = display_reply
@@ -405,10 +506,18 @@ async def generate_reply_stream(
         new_level = max(0, min(100, old_level + gain))
         conversation.intimacy_level = new_level
 
+        # Evolve persisted mood from this exchange (carries forward if neutral).
+        from services.intimacy_service import derive_mood
+        conversation.current_mood = derive_mood(user_message, conversation.current_mood or "")
+
         # Detect tier change
         old_tier = get_tier(old_level)
         new_tier = get_tier(new_level)
         tier_unlocked = new_tier.threshold > old_tier.threshold
+        # Park the crossed tier so the NEXT reply celebrates it in-fiction
+        # (build_messages consumes + clears pending_unlock_tier).
+        if tier_unlocked:
+            conversation.pending_unlock_tier = new_tier.threshold
 
         if result_holder is not None:
             result_holder.intimacy_update = {
@@ -446,6 +555,7 @@ async def process_reply_images(
     avatar_url: str | None,
     db: Session,
     intimacy_level: int = 0,
+    explicit_unlock_override: int | None = None,
 ) -> tuple[list[dict], list[dict]]:
     """
     Process both [SCENE:n] (instant) and [IMG:] (generated) tags.
@@ -475,15 +585,14 @@ async def process_reply_images(
     #   • nsfw_images_enabled — master switch; when False, skip ALL [IMG:] generation.
     #   • nsfw_unlock_intimacy — intimacy threshold that flips the explicit flag.
     #   • vip_only_explicit — paywall hook; when True, force non-explicit regardless.
-    from services.ops_config import get_ops_value
+    from services.ops_config import get_ops_value, is_image_explicit_allowed
 
     tag_to_url: dict[str, str] = {}
     img_tags = extract_image_tags(full_reply) if get_ops_value(db, "nsfw_images_enabled", True) else []
 
-    unlock_at = get_ops_value(db, "nsfw_unlock_intimacy", 40)
-    is_nsfw = intimacy_level >= unlock_at
-    if get_ops_value(db, "vip_only_explicit", False):
-        is_nsfw = False
+    # Same gate logic as text, honoring per-character override → images unlock in
+    # step with explicit text (no SFW-photo / explicit-text split for start-hot).
+    is_nsfw = is_image_explicit_allowed(db, intimacy_level, explicit_unlock_override)
 
     if img_tags:
         logger.info(f"Generating {len(img_tags)} image(s) with intimacy={intimacy_level}...")

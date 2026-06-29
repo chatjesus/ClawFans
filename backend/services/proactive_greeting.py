@@ -74,7 +74,33 @@ async def generate_return_greeting(
     # carries the tier name + how forward/revealing the character may be.
     level = getattr(conversation, "intimacy_level", 0) or 0
     tier = get_tier(level)
-    intimacy_block = build_intimacy_prompt(level)
+    from services.ops_config import is_text_explicit_allowed
+    intimacy_block = build_intimacy_prompt(
+        level,
+        text_explicit_allowed=is_text_explicit_allowed(
+            db, level, getattr(character, "explicit_unlock_intimacy", None)
+        ),
+    )
+
+    # Weave in a real memory / last topic so the greeting reads like a person who
+    # remembers, not a generic notification.
+    mem_hint = ""
+    try:
+        from memory.retriever import retrieve_memories
+        uid = conversation.clerk_user_id or ""
+        facts = []
+        if uid:
+            for m in retrieve_memories(db, uid, character.id, limit=2) or []:
+                facts.append(f"{m.key}：{m.value}")
+        if last_msg and last_msg.role == "user" and (last_msg.content or "").strip():
+            facts.append(f"你们上次聊到：{last_msg.content.strip()[:40]}")
+        if facts:
+            mem_hint = (
+                "自然地把下面这些'你还记得的事'揉进问候里(挑一个最自然的，别罗列)，"
+                "让他感到被记住、被在意，而不是收到一条群发通知：\n- " + "\n- ".join(facts) + "\n"
+            )
+    except Exception:
+        pass
 
     prompt = [
         {
@@ -84,6 +110,7 @@ async def generate_return_greeting(
                 f"{intimacy_block}\n"
                 f"用户离开了大约 {away_desc} 才回来。现在由你主动开口——"
                 f"用你的人设，自然地表达你注意到了他的离开、想他/在意他。\n"
+                f"{mem_hint}"
                 f"开场的亲密、暧昧、露骨程度要匹配你们当前的关系阶段「{tier.name_cn}」"
                 f"——关系越深越大胆，到了亲密阶段可以直接、露骨、带情欲。\n"
                 f"1-2 句，带一个 *动作*，口语化。只输出这句话本身，不要任何解释。"
