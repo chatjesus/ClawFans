@@ -1,0 +1,94 @@
+{
+  "title": "First Encounter",
+  "episode": 1,
+  "character": {
+    "name": "An Lawyer",
+    "appearance": "26-year-old with short black hair, sharp jawline, tailored navy blazer, glasses with thin black frames, carries oversized briefcase"
+  },
+  "scenes": [
+    {
+      "id": 0,
+      "location": "Court building entrance",
+      "time": "Dusk",
+      "narration": "她深吸一口气，让雾气渗入肺腑",
+      "dialogue": "",
+      "visual_prompt": "Cold golden light illuminates woman in navy blazer, short black hair with faint silver streaks, intense gaze fixed on courthouse doors, oversized briefcase slung over shoulder, Danbooru tags: #businesswoman #lawyer #dusk #urban",
+      "camera": "wide shot",
+      "mood": "mysterious",
+      "motion": "hair sways with wind",
+      "duration_sec": 4
+    },
+    {
+      "id": 1,
+      "location": "Court corridor",
+      "time": "Evening",
+      "narration": "脚步声在空旷大厅回响",
+      "dialogue": "",
+      "visual_prompt": "Woman in sharp blazer walks through empty corridor, shadowy walls reflect her determined expression, faint light from ceiling panels, Danbooru tags: #lawyer #corridor #evening #determination",
+      "camera": "medium shot",
+      "mood": "tense",
+      "motion": "heels click against marble floor",
+      "duration_sec": 3
+    },
+    {
+      "id": 2,
+      "location": "Meeting room",
+      "time": "Afternoon",
+      "narration": "我能赢",
+      "dialogue": "I can win",
+      "visual_prompt": "Woman with glasses adjusts posture, fingers tap wooden table, sunlight creates light patterns on her black skirt, Danbooru tags: #lawyer #confidence #meetingroom #sunlight",
+      "camera": "close-up",
+      "mood": "romantic",
+      "motion": "glasses glint with light",
+      "duration_sec": 4
+    },
+    {
+      "id": 3,
+      "location": "Meeting room",
+      "time": "Afternoon",
+      "narration": "你准备好了吗？",
+      "dialogue": "Are you ready?",
+      "visual_prompt": "Woman with sharp jawline tilts head, black hair framing face, warm light highlights tired eyes of woman in floral blouse, Danbooru tags: #lawyer #interrogation #sunlight #tired",
+      "camera": "over-shoulder",
+      "mood": "mysterious",
+      "motion": "hair falls across face",
+      "duration_sec": 3
+    },
+    {
+      "id": 4,
+      "location": "Courtyard",
+      "time": "Twilight",
+      "narration": "这场官司的秘密",
+      "dialogue": "Let's uncover the secret",
+      "visual_prompt": "Woman in blazer walks through garden path, autumn leaves fall around her, soft light filters through trees, Danbooru tags: #lawyer #garden #twilight #mystery",
+      "camera": "wide shot",
+      "mood": "melancholy",
+      "motion": "leaves swirl around legs",
+      "duration_sec": 4
+    },
+    {
+      "id": 5,
+      "location": "Courtyard",
+      "time": "Twilight",
+      "narration": "什么让您选择我？",
+      "dialogue": "What made you choose me?",
+      "visual_prompt": "Woman with silver-streaked hair leans forward, glasses reflecting sunset, intense gaze meets tired eyes across table, Danbooru tags: #lawyer #questioning #sunset #intense",
+      "camera": "close-up",
+      "mood": "tense",
+      "motion": "eye contact intensifies",
+      "duration_sec": 4
+    },
+    {
+      "id": 6,
+      "location": "Courtyard",
+      "time": "Night",
+      "narration": "裂缝悄然出现",
+      "dialogue": "",
+      "visual_prompt": "Woman in blazer stands under streetlight, shadowy figure approaches, faint bird chirps in background, Danbooru tags: #lawyer #shadow #night #mystery",
+      "camera": "wide shot",
+      "mood": "mysterious",
+      "motion": "bird flies across light",
+      "duration_sec": 3
+    }
+  ]
+}

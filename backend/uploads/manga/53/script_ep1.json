@@ -1,0 +1,94 @@
+{
+  "title": "初遇：城市的另一面",
+  "episode": 1,
+  "character": {
+    "name": "苏雨柔",
+    "appearance": "30岁御姐风，深栗色长发微卷，五官精致带距离感，剪裁利落的黑色西装套装，珍珠耳钉与细高跟，常年保持精致妆容"
+  },
+  "scenes": [
+    {
+      "id": 0,
+      "location": "上海复式公寓",
+      "time": "深夜",
+      "narration": "深夜的灯下，只有我与设计稿为伴",
+      "visual_prompt": "modern studio with floor-to-ceiling windows, rain streaks on glass, woman in black tailored suit sits at desk, wine glass with red liquid, art prints on walls, soft ambient lighting",
+      "camera": "over-shoulder",
+      "mood": "melancholy",
+      "motion": "hair sways gently with the breeze",
+      "duration_sec": 4,
+      "dialogue": ""
+    },
+    {
+      "id": 1,
+      "location": "公寓玄关",
+      "time": "深夜",
+      "narration": "这个时间，谁会来打扰我的宁静？",
+      "visual_prompt": "woman in high heels stands by elevator door, rainwater drips from her coat, city lights reflected in polished floor, camera focuses on her slightly furrowed brow",
+      "camera": "medium shot",
+      "mood": "tense",
+      "motion": "hand clutches purse strap",
+      "duration_sec": 3,
+      "dialogue": ""
+    },
+    {
+      "id": 2,
+      "location": "公寓客厅",
+      "time": "深夜",
+      "narration": "完美主义的我，从不轻易开门",
+      "visual_prompt": "woman in slacks and blouse stands in doorway, light from living room highlights her sharp cheekbones, shadow of figure behind her",
+      "camera": "wide shot",
+      "mood": "mysterious",
+      "motion": "shoulders tense slightly",
+      "duration_sec": 4,
+      "dialogue": ""
+    },
+    {
+      "id": 3,
+      "location": "公寓厨房",
+      "time": "深夜",
+      "narration": "茶香里藏着无法说出口的孤独",
+      "visual_prompt": "woman in apron kneels by stove, steam rises from teapot, warm golden light glows on her face, reflection shows shadowy figure in doorway",
+      "camera": "close-up",
+      "mood": "romantic",
+      "motion": "finger traces rim of teacup",
+      "duration_sec": 4,
+      "dialogue": ""
+    },
+    {
+      "id": 4,
+      "location": "公寓走廊",
+      "time": "深夜",
+      "narration": "脚步声让我心跳漏了一拍",
+      "visual_prompt": "woman in tailored suit stands in hallway, light from hallway illuminates her profile, shadowy figure approaches from opposite end",
+      "camera": "medium shot",
+      "mood": "tense",
+      "motion": "foot tapping rhythmically",
+      "duration_sec": 3,
+      "dialogue": ""
+    },
+    {
+      "id": 5,
+      "location": "公寓书房",
+      "time": "深夜",
+      "narration": "他身上的雪松香，和我的红酒撞出火花",
+      "visual_prompt": "woman in blazer turns slowly, light from window highlights her necklaces, man in dark coat stands in doorway, camera focuses on their mirrored reflections",
+      "camera": "wide shot",
+      "mood": "romantic",
+      "motion": "neck tilts slightly",
+      "duration_sec": 4,
+      "dialogue": ""
+    },
+    {
+      "id": 6,
+      "location": "公寓门口",
+      "time": "深夜",
+      "narration": "这盏灯下，或许会有新的故事开始",
+      "visual_prompt": "woman in heels stands by door, light from hallway creates dramatic shadows, man in dark coat holds a bouquet of white flowers",
+      "camera": "over-shoulder",
+      "mood": "mysterious",
+      "motion": "flowers sway gently",
+      "duration_sec": 4,
+      "dialogue": ""
+    }
+  ]
+}

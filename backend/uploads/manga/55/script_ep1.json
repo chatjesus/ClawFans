@@ -1,0 +1,94 @@
+{
+  "title": "Rule Breaker",
+  "episode": 1,
+  "character": {
+    "name": "Shen Zhiyi",
+    "appearance": "Cold elegance with sharp features, black hair tied in a high ponytail, tailored black suit with silver thread, piercing eyes with faint vulnerability"
+  },
+  "scenes": [
+    {
+      "id": 0,
+      "location": "Law Firm Office",
+      "time": "Midnight",
+      "narration": "The city's lights reflect in her coffee cup like scattered stars",
+      "dialogue": "",
+      "visual_prompt": "Close-up of Shen Zhiyi's silhouette against warm desk lamp, black suit with silver thread, coffee steam rising, long finger tracing cup rim #cold_elegance #lawyer_chic",
+      "camera": "Close-up",
+      "mood": "mysterious",
+      "motion": "Finger tracing cup rim",
+      "duration_sec": 4
+    },
+    {
+      "id": 1,
+      "location": "Office Corridor",
+      "time": "Midnight",
+      "narration": "A single light illuminates the empty corridor like a silent heartbeat",
+      "dialogue": "",
+      "visual_prompt": "Wide shot of empty corridor with single light bulb, shadow of Shen Zhiyi walking towards office door #urban_mystery #lawyer_lantern",
+      "camera": "Wide shot",
+      "mood": "tense",
+      "motion": "Slow walk with purpose",
+      "duration_sec": 4
+    },
+    {
+      "id": 2,
+      "location": "Office Door",
+      "time": "Midnight",
+      "narration": "The door creaks open like a secret waiting to be revealed",
+      "dialogue": "Enter",
+      "visual_prompt": "Over-shoulder shot of Shen Zhiyi's back, door handle creaking, light from office spilling out #lawyer_door #midnight_mystery",
+      "camera": "Over-shoulder",
+      "mood": "mysterious",
+      "motion": "Door handle creaking",
+      "duration_sec": 3
+    },
+    {
+      "id": 3,
+      "location": "Office Desk",
+      "time": "Midnight",
+      "narration": "A perfect world where rules are written in ink",
+      "dialogue": "",
+      "visual_prompt": "Medium shot of Shen Zhiyi's hands gripping pen, legal documents spread out, shadowy desk with glowing computer screen #lawyer_workspace #ink_rules",
+      "camera": "Medium shot",
+      "mood": "romantic",
+      "motion": "Pen scratching paper",
+      "duration_sec": 4
+    },
+    {
+      "id": 4,
+      "location": "Office Door",
+      "time": "Midnight",
+      "narration": "A sudden knock disrupts the perfect silence",
+      "dialogue": "Come in",
+      "visual_prompt": "Close-up of Shen Zhiyi's eyes widening slightly, finger on door handle #lawyer_surprise #midnight_knock",
+      "camera": "Close-up",
+      "mood": "tense",
+      "motion": "Eye widening",
+      "duration_sec": 3
+    },
+    {
+      "id": 5,
+      "location": "Office Desk",
+      "time": "Midnight",
+      "narration": "A diary hidden beneath the surface of perfection",
+      "dialogue": "",
+      "visual_prompt": "Low-angle shot of open diary on desk, light reflecting off pages, shadow of Shen Zhiyi's hand covering it #secret_diary #lawyer_memoir",
+      "camera": "Low-angle",
+      "mood": "melancholy",
+      "motion": "Hand covering diary",
+      "duration_sec": 4
+    },
+    {
+      "id": 6,
+      "location": "Office Desk",
+      "time": "Midnight",
+      "narration": "A new chapter written in unexpected ink",
+      "dialogue": "This matter is settled",
+      "visual_prompt": "Two-shot of Shen Zhiyi and Li Xiaofeng, her eyes reflecting his smile #lawyer_encounter #unexpected_chapter",
+      "camera": "Two-shot",
+      "mood": "romantic",
+      "motion": "Eye contact",
+      "duration_sec": 5
+    }
+  ]
+}

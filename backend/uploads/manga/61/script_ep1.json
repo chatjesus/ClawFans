@@ -1,0 +1,94 @@
+{
+  "title": "甜味独白",
+  "episode": 1,
+  "character": {
+    "name": "乔夏",
+    "appearance": "26岁短发带卷，甜美酒窝，鼻梁有浅色疤痕，常穿oversize针织衫配工装裤"
+  },
+  "scenes": [
+    {
+      "id": 0,
+      "location": "厨房",
+      "time": "傍晚",
+      "narration": "巧克力在舌尖融化，孤独却像糖霜一样粘在心上",
+      "dialogue": "哈喽朋友们！今天的巧克力熔岩蛋糕超绝！",
+      "visual_prompt": "close-up of glowing chocolate sauce dripping from a fork, #sweet_smile #caramel_hair #chocolate_cake",
+      "camera": "close-up",
+      "mood": "warm",
+      "motion": "finger twirling chocolate",
+      "duration_sec": 4
+    },
+    {
+      "id": 1,
+      "location": "客厅",
+      "time": "深夜",
+      "narration": "外卖盒堆成小山，手机屏幕照亮了疲惫的侧脸",
+      "dialogue": "今天其实...有点累",
+      "visual_prompt": "wide shot of pizza boxes and takeout bags, #sleepy_face #messy_hair #couch_life",
+      "camera": "wide shot",
+      "mood": "melancholy",
+      "motion": "head leaning on armrest",
+      "duration_sec": 4
+    },
+    {
+      "id": 2,
+      "location": "阳台",
+      "time": "凌晨",
+      "narration": "霓虹灯在玻璃上投下破碎的光斑，像童年破碎的窗",
+      "dialogue": "妈妈，爸爸...你们还好吗",
+      "visual_prompt": "over-shoulder shot of city lights reflecting on window, #teary_eyes #city_night",
+      "camera": "over-shoulder",
+      "mood": "mysterious",
+      "motion": "blinking against light",
+      "duration_sec": 4
+    },
+    {
+      "id": 3,
+      "location": "手机屏幕",
+      "time": "此刻",
+      "narration": "陌生消息亮起时，心跳比外卖提示更突然",
+      "dialogue": "嘿，乔夏小姐...",
+      "visual_prompt": "glowing phone screen with text, #surprised_face #shiny_screen",
+      "camera": "medium shot",
+      "mood": "tense",
+      "motion": "finger trembling on screen",
+      "duration_sec": 4
+    },
+    {
+      "id": 4,
+      "location": "厨房",
+      "time": "深夜",
+      "narration": "巧克力融化时，思念也变得粘稠",
+      "dialogue": "没事的随便说说",
+      "visual_prompt": "slow-motion of melting chocolate, #sticky_chocolate #sweet_fall",
+      "camera": "slow-motion",
+      "mood": "romantic",
+      "motion": "spoon stirring melting chocolate",
+      "duration_sec": 4
+    },
+    {
+      "id": 5,
+      "location": "门外",
+      "time": "此刻",
+      "narration": "有人站在门后，拿着同样装满巧克力的盘子",
+      "dialogue": "我刚从厨房出来...",
+      "visual_prompt": "shadowy figure holding chocolate platter, #mysterious_stranger #chocolate_light",
+      "camera": "wide shot",
+      "mood": "mysterious",
+      "motion": "door creaking open",
+      "duration_sec": 4
+    },
+    {
+      "id": 6,
+      "location": "玄关",
+      "time": "此刻",
+      "narration": "两盒巧克力在门框形成对称，像某种无声的约定",
+      "dialogue": "今天过得怎么样？",
+      "visual_prompt": "symmetrical chocolate platters, #mirror_symmetry #sweet_conspiracy",
+      "camera": "over-shoulder",
+      "mood": "romantic",
+      "motion": "chocolate melting in sync",
+      "duration_sec": 4
+    }
+  ]
+}

@@ -1,0 +1,94 @@
+{
+  "title": "书页间的秘密",
+  "episode": 1,
+  "character": {
+    "name": "余灯",
+    "appearance": "23岁文艺女青年，黑色及腰长发微卷，苍白皮肤透着书页纸色，米白色针织衫配深灰羊毛裙，戴银框眼镜，左手无名指有淡粉色书页纹身"
+  },
+  "scenes": [
+    {
+      "id": 0,
+      "location": "图书馆古籍区",
+      "time": "黄昏",
+      "narration": "夕阳在书脊上流淌，她像影子般穿梭在知识的迷宫",
+      "visual_prompt": "A shy girl with black wavy hair in a white针织衫 and grey wool skirt, glasses, holding a book in a dusty library with old wooden shelves, golden sunset light filters through stained glass windows, tags: 1girl, bookworm, library, softlight, vintage_books",
+      "camera": "wide shot",
+      "mood": "melancholy",
+      "motion": "slow walk between shelves",
+      "duration_sec": 4,
+      "dialogue": ""
+    },
+    {
+      "id": 1,
+      "location": "历史小说区",
+      "time": "傍晚",
+      "narration": "某个身影在书架间留下独特的气息",
+      "visual_prompt": "A tall man in a dark coat reading a history novel, sunlight glinting off his glasses, shadows stretch across the floor, tags: 1boy, library, bookshelf, goldenhour, mysterious",
+      "camera": "over-shoulder",
+      "mood": "tense",
+      "motion": "book pages fluttering",
+      "duration_sec": 3,
+      "dialogue": ""
+    },
+    {
+      "id": 2,
+      "location": "还书台",
+      "time": "傍晚",
+      "narration": "指尖颤抖着夹进那张泛黄的便签",
+      "visual_prompt": "Close-up of trembling fingers placing a yellowed note between book pages, dust motes in the air, tags: closeup, trembling_hands, book_notes, library, delicate",
+      "camera": "close-up",
+      "mood": "romantic",
+      "motion": "fingers trembling",
+      "duration_sec": 4,
+      "dialogue": ""
+    },
+    {
+      "id": 3,
+      "location": "古籍区",
+      "time": "黄昏",
+      "narration": "等待时心跳声比钟摆更清晰",
+      "visual_prompt": "Girl with upturned eyes staring at the clock, shadowy library with flickering lights, tags: anxious_eyes, library, waiting, candlelight, 1girl",
+      "camera": "medium shot",
+      "mood": "mysterious",
+      "motion": "eye contact",
+      "duration_sec": 3,
+      "dialogue": ""
+    },
+    {
+      "id": 4,
+      "location": "历史小说区",
+      "time": "傍晚",
+      "narration": "终于等到那个熟悉的背影",
+      "visual_prompt": "Man turning around with surprised expression, sunlight highlighting his hair, tags: surprised_boy, library, sunlight, bookshelf, 1boy",
+      "camera": "wide shot",
+      "mood": "romantic",
+      "motion": "slow turn",
+      "duration_sec": 4,
+      "dialogue": ""
+    },
+    {
+      "id": 5,
+      "location": "还书台",
+      "time": "黄昏",
+      "narration": "指尖触碰的瞬间，心跳声突然静止",
+      "visual_prompt": "Close-up of fingertips touching, paper crinkling, soft focus background, tags: closeup, fingertips, library, shy_boy, delicate",
+      "camera": "close-up",
+      "mood": "tense",
+      "motion": "finger touch",
+      "duration_sec": 4,
+      "dialogue": ""
+    },
+    {
+      "id": 6,
+      "location": "图书馆出口",
+      "time": "黄昏",
+      "narration": "转身时发现他早已在等待",
+      "visual_prompt": "Girl turning around to find a waiting man in the doorway, golden light illuminating both, tags: waiting_boy, library, goldenhour, 1girl, 1boy",
+      "camera": "wide shot",
+      "mood": "romantic",
+      "motion": "slow turn",
+      "duration_sec": 5,
+      "dialogue": ""
+    }
+  ]
+}

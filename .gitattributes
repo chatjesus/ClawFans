@@ -1,0 +1,12 @@
+backend/uploads/**/*.jpeg filter=lfs diff=lfs merge=lfs -text
+backend/uploads/**/*.webp filter=lfs diff=lfs merge=lfs -text
+backend/uploads/**/*.gif filter=lfs diff=lfs merge=lfs -text
+backend/uploads/**/*.mov filter=lfs diff=lfs merge=lfs -text
+backend/uploads/**/*.png filter=lfs diff=lfs merge=lfs -text
+backend/uploads/**/*.jpg filter=lfs diff=lfs merge=lfs -text
+backend/uploads/**/*.mp3 filter=lfs diff=lfs merge=lfs -text
+backend/uploads/**/*.mp4 filter=lfs diff=lfs merge=lfs -text
+backend/uploads/**/*.wav filter=lfs diff=lfs merge=lfs -text
+backend/uploads/**/*.webm filter=lfs diff=lfs merge=lfs -text
+backend/uploads/**/*.svg filter=lfs diff=lfs merge=lfs -text
+backend/uploads/**/*.ico filter=lfs diff=lfs merge=lfs -text
